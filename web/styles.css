@@ -330,3 +330,18 @@ body.app-page { height: 100dvh; overflow: hidden; background: var(--bg); }
 /* Rental History tab */
 .history-summary { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 .receipt-meta { color: var(--muted); font-size: 13px; margin: -6px 0 0; }
+
+/* ---- Window look (title bar with dots, toolbar, rounded frame) ------------ */
+body.app-page { padding: 16px; }
+.app-full {
+  height: calc(100dvh - 32px);
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.app-titlebar h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: 0; line-height: 1.4; }
+.app-full > .menubar { flex: none; background: var(--surface); }
+.app-full > .menubar button:first-child { background: var(--surface-2); }
+@media (max-width: 600px) {
+  body.app-page { padding: 0; }
+  .app-full { height: auto; min-height: 100dvh; border: 0; border-radius: 0; }
+}

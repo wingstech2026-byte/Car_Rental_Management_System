@@ -10,29 +10,20 @@
 </head>
 <body class="app-page">
   <div class="app app-full" id="app">
-    <!-- ================= Title + menu bar ================= -->
-    <header class="app-header">
-      <div class="app-brand">
-        <svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M14 38l5-12c1-3 3-4 6-4h14c3 0 5 1 6 4l5 12v8h-6v-4H20v4h-6z" fill="#fff"/></svg>
-        <h1 id="appTitle">Car Rental Management System</h1>
-      </div>
+    <!-- ================= Title bar ================= -->
+    <div class="app-titlebar">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h1 id="appTitle">Car Rental Management System</h1>
+    </div>
 
-      <nav class="menubar" aria-label="Main menu">
-        <div class="menu">
-          <button type="button" class="menu-button" aria-haspopup="true" aria-expanded="false" id="fileMenuBtn">File</button>
-          <div class="menu-list" role="menu" aria-labelledby="fileMenuBtn" hidden>
-            <button type="button" role="menuitem" id="saveBtn">Save <kbd>Ctrl+S</kbd></button>
-            <button type="button" role="menuitem" id="openBtn">Open data files&hellip;</button>
-            <button type="button" role="menuitem" id="downloadBtn">Download data files</button>
-            <hr>
-            <button type="button" role="menuitem" id="resetBtn">Restore sample data</button>
-          </div>
-        </div>
-      </nav>
-
-      <span class="engine" id="engineStatus" role="status"></span>
-      <input type="file" id="fileInput" accept=".txt,text/plain" multiple hidden>
-    </header>
+    <!-- ================= Toolbar ================= -->
+    <div class="menubar" role="toolbar" aria-label="Toolbar">
+      <button type="button" id="saveBtn" title="Save (Ctrl+S)">Save <kbd>Ctrl+S</kbd></button>
+      <button type="button" id="selfTestBtn">Run Business Rule Self-Test</button>
+      <button type="button" id="errorsBtn" title="Loads a data file with invalid lines to show the load validation">Load file with errors</button>
+      <button type="button" id="resetBtn">Reset sample data</button>
+      <span class="engine" id="engineStatus" role="status">Loading&hellip;</span>
+    </div>
 
     <!-- ================= Tabs ================= -->
     <div class="tabs" role="tablist" aria-label="Sections">
@@ -204,6 +195,15 @@
       <h3 id="confirmTitle">Car Rental Management System</h3>
       <p id="confirmText"></p>
       <div class="dlg-actions"><button type="submit" class="btn" value="cancel">Cancel</button><button type="submit" class="btn btn-primary" value="ok" id="confirmOk">OK</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="selfTestDialog" class="dlg dlg-wide" aria-labelledby="selfTestTitle">
+    <form method="dialog">
+      <h3 id="selfTestTitle">Business Rule Self-Test</h3>
+      <p id="selfTestSummary"></p>
+      <ul class="test-list" id="selfTestList"></ul>
+      <div class="dlg-actions"><button type="submit" class="btn btn-primary">OK</button></div>
     </form>
   </dialog>
 

@@ -64,6 +64,6 @@ em++ -std=c++17 -O2 -Wall -Wextra -fexceptions \
 
 echo "==> Copying the front end and sample data"
 cp "$WEB/index.html" "$WEB/styles.css" "$WEB/app.js" "$OUT/"
-cp "$SRC/data/vehicles.txt" "$SRC/data/revenue.txt" "$SRC/data/history.txt" "$OUT/data/"
+cp "$SRC/data/vehicles.txt" "$SRC/data/revenue.txt" "$SRC/data/history.txt" "$SRC/data/vehicles_with_errors.txt" "$OUT/data/"
 
 echo "==> Done: $(ls "$OUT")"

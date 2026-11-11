@@ -613,85 +613,6 @@
       confirmAction('Unsaved changes', 'You have unsaved changes. Discard them and continue?', 'Discard changes');
   }
 
-  function readFileText(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('Could not read ' + file.name));
-      reader.readAsText(file, 'utf-8');
-    });
-  }
-
-  // File > Open data files...: the user picks vehicles.txt and optionally revenue.txt
-  // and history.txt (recognised by their names). Files not picked keep their current content.
-  async function openDataFiles(fileList) {
-    const files = Array.from(fileList);
-    if (files.length === 0) return;
-    if (!(await confirmDiscard())) return;
-    const revenueFile = files.find((file) => /revenue/i.test(file.name));
-    const historyFile = files.find((file) => /history/i.test(file.name));
-    const vehicleFile = files.find((file) => file !== revenueFile && file !== historyFile);
-    const vehiclesText = vehicleFile ? await readFileText(vehicleFile) : readDataFile('vehicles.txt');
-    const revenueText = revenueFile ? await readFileText(revenueFile) : readDataFile('revenue.txt');
-    const historyText = historyFile ? await readFileText(historyFile) : readDataFile('history.txt');
-    loadFromFiles(vehiclesText, revenueText, historyText, files.map((file) => file.name).join(' + '));
-    // Keep the opened files as the saved data of this browser.
-    storageSet(STORAGE_VEHICLES, vehiclesText);
-    storageSet(STORAGE_REVENUE, revenueText);
-    storageSet(STORAGE_HISTORY, historyText);
-  }
-
-  function downloadText(fileName, text) {
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  // File > Download data files: saves, then downloads vehicles.txt and revenue.txt
-  // exactly as written by the C++ TextFileDataStore.
-  function downloadDataFiles() {
-    if (!save()) return;
-    downloadText('vehicles.txt', readDataFile('vehicles.txt'));
-    setTimeout(() => downloadText('revenue.txt', readDataFile('revenue.txt')), 300);
-    setTimeout(() => downloadText('history.txt', readDataFile('history.txt')), 600);
-    setLastAction('Saved and downloaded vehicles.txt, revenue.txt and history.txt.');
-  }
-
-  // ------------------------------------------------------------------ menus --
-  function setupMenus() {
-    const menus = Array.from(document.querySelectorAll('.menu'));
-    const closeAll = (except) => menus.forEach((menu) => {
-      if (menu === except) return;
-      menu.querySelector('.menu-list').hidden = true;
-      menu.querySelector('.menu-button').setAttribute('aria-expanded', 'false');
-    });
-    for (const menu of menus) {
-      const button = menu.querySelector('.menu-button');
-      const list = menu.querySelector('.menu-list');
-      button.addEventListener('click', () => {
-        const open = list.hidden;
-        closeAll(menu);
-        list.hidden = !open;
-        button.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open) list.querySelector('[role=menuitem]').focus();
-      });
-      list.addEventListener('click', (event) => { if (event.target.closest('[role=menuitem]')) closeAll(); });
-      list.addEventListener('keydown', (event) => {
-        const items = Array.from(list.querySelectorAll('[role=menuitem]'));
-        const index = items.indexOf(document.activeElement);
-        if (event.key === 'ArrowDown') { event.preventDefault(); items[(index + 1) % items.length].focus(); }
-        if (event.key === 'ArrowUp') { event.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
-        if (event.key === 'Escape') { event.preventDefault(); closeAll(); button.focus(); }
-      });
-    }
-    document.addEventListener('click', (event) => { if (!event.target.closest('.menu')) closeAll(); });
-  }
-
   // ------------------------------------------------------------------- tabs --
   const tabs = ['fleet', 'search', 'rentals', 'history'];
 
@@ -720,6 +641,28 @@
     });
   });
 
+  // --------------------------------------------------------------- self-test --
+  function runSelfTest() {
+    const results = call('runSelfTest').results; // C++ BusinessRuleSelfTest
+    const passed = results.filter((result) => result.passed).length;
+    $('selfTestSummary').textContent = passed + ' of ' + results.length +
+      ' business-rule checks passed (run on a temporary agency - your data was not changed).';
+    const list = $('selfTestList');
+    list.replaceChildren();
+    for (const result of results) {
+      const item = document.createElement('li');
+      item.className = result.passed ? 'pass' : 'fail';
+      const name = document.createElement('strong');
+      name.textContent = (result.passed ? 'PASS  ' : 'FAIL  ') + result.name;
+      const detail = document.createElement('span');
+      detail.textContent = result.detail;
+      item.append(name, detail);
+      list.appendChild(item);
+    }
+    $('selfTestDialog').showModal();
+    setLastAction('Self-test: ' + passed + ' of ' + results.length + ' passed.');
+  }
+
   // ---------------------------------------------------------- wire-up events --
   function wireEvents() {
     $('addBtn').addEventListener('click', () => openVehicleDialog(null));
@@ -730,25 +673,25 @@
     $('historySearch').addEventListener('input', () => refreshAll());
     $('historyReceiptBtn').addEventListener('click', () => showHistoryReceipt());
     $('saveBtn').addEventListener('click', () => save());
+    $('selfTestBtn').addEventListener('click', () => runSelfTest());
+    $('errorsBtn').addEventListener('click', async () => {
+      if (!(await confirmDiscard())) return;
+      const [vehicles, revenue, history] = await Promise.all([
+        fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
+      loadFromFiles(vehicles, revenue, history, 'vehicles_with_errors.txt (not saved until you choose Save)');
+    });
     $('resetBtn').addEventListener('click', async () => {
-      const ok = await confirmAction('Restore sample data',
+      const ok = await confirmAction('Reset sample data',
         'Replace all vehicles, the revenue and the rental history with the original sample data? ' +
         'Your saved data in this browser will be deleted.',
-        'Restore sample data');
+        'Reset sample data');
       if (!ok) return;
       storageRemove(STORAGE_VEHICLES);
       storageRemove(STORAGE_REVENUE);
       storageRemove(STORAGE_HISTORY);
       await loadSample();
     });
-    $('openBtn').addEventListener('click', () => $('fileInput').click());
-    $('fileInput').addEventListener('change', async (event) => {
-      try { await openDataFiles(event.target.files); } catch (error) { reject(error.message); }
-      event.target.value = '';
-    });
-    $('downloadBtn').addEventListener('click', () => downloadDataFiles());
     $('printReceiptBtn').addEventListener('click', () => printReceipt());
-    setupMenus();
     document.addEventListener('keydown', (event) => {
       if (!(event.ctrlKey || event.metaKey) || !app) return;
       const key = event.key.toLowerCase();
@@ -774,6 +717,8 @@
       app = new engine.WebApp();
       setButtonsEnabled(true);
       wireEvents();
+      $('engineStatus').textContent = 'C++ engine: WebAssembly ✓';
+      $('engineStatus').classList.add('ready');
       const savedVehicles = storageGet(STORAGE_VEHICLES);
       const savedRevenue = storageGet(STORAGE_REVENUE);
       const savedHistory = storageGet(STORAGE_HISTORY);
