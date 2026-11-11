@@ -8,3 +8,9 @@ Release/
 CarRentalSystem/x64/
 CarRentalSystem/Debug/
 CarRentalSystem/Release/
+
+# Website build output and the Emscripten SDK downloaded by web/build.sh
+web/dist/
+.emsdk/
+.vercel/
+.playwright-mcp/

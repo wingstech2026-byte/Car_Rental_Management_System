@@ -476,3 +476,16 @@ classDiagram
 | Status rules | A rented vehicle can't be rented again or edited. Only rented vehicles can be returned. |
 
 Deposits, insurance and traffic violations are intentionally **out of scope**.
+
+---
+
+## 7. Website and live demo (Vercel)
+
+The `web/` folder contains a project website with a **live demo that runs the same C++ business logic in the browser**.
+
+- `web/wasm/WebBindings.cpp` is a small C++ bridge. It plays the role of the desktop dialogs, calling `RentalAgency` and catching `RentalException` exactly like `ModalDialog::handleOk()`.
+- `web/build.sh` compiles the business classes in `CarRentalSystem/` (`Money`, `Vehicle`, `RentalAgency`, `Validation`, `TextFileDataStore`, …) together with the bridge to WebAssembly using **Emscripten**. Only the Win32 GUI files are left out; the page in `web/index.html` + `web/app.js` replaces them and contains no business rules.
+- `TextUtils.cpp` uses the Win32 API on Windows and portable standard C++ elsewhere. No other business file needed any change.
+- `vercel.json` tells Vercel to run `web/build.sh` and publish `web/dist/`. Every push to GitHub rebuilds the site from the C++ sources.
+
+**Deploying:** on <https://vercel.com/new>, import this GitHub repository and click **Deploy**. No settings need changing, because `vercel.json` provides them.
