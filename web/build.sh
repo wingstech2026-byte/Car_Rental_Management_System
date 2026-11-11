@@ -14,12 +14,15 @@ SRC="$ROOT/CarRentalSystem"
 WEB="$ROOT/web"
 OUT="$WEB/dist"
 EMSDK_VERSION="3.1.64"
-EMSDK_DIR="${EMSDK_DIR:-$ROOT/.emsdk}"
+# The SDK is installed in a temporary folder outside the project. Vercel's build
+# cache can restore a *partial* copy of folders inside the project, which made
+# "git clone" fail, so we always start from a clean, fresh download.
+EMSDK_DIR="${EMSDK_DIR:-${TMPDIR:-/tmp}/emsdk}"
 
 echo "==> Installing Emscripten $EMSDK_VERSION"
-if [ ! -f "$EMSDK_DIR/emsdk" ]; then
-  git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
-fi
+rm -rf "$ROOT/.emsdk"   # left over from older builds; no longer used
+rm -rf "$EMSDK_DIR"
+git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
 "$EMSDK_DIR/emsdk" install "$EMSDK_VERSION"
 "$EMSDK_DIR/emsdk" activate "$EMSDK_VERSION"
 # shellcheck disable=SC1091
