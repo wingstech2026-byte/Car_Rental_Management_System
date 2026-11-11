@@ -720,28 +720,6 @@
     });
   });
 
-  // --------------------------------------------------------------- self-test --
-  function runSelfTest() {
-    const results = call('runSelfTest').results;
-    const passed = results.filter((result) => result.passed).length;
-    $('selfTestSummary').textContent = passed + ' of ' + results.length +
-      ' business-rule checks passed (C++ BusinessRuleSelfTest, run on a temporary agency - your data was not changed).';
-    const list = $('selfTestList');
-    list.replaceChildren();
-    for (const result of results) {
-      const item = document.createElement('li');
-      item.className = result.passed ? 'pass' : 'fail';
-      const name = document.createElement('strong');
-      name.textContent = (result.passed ? 'PASS  ' : 'FAIL  ') + result.name;
-      const detail = document.createElement('span');
-      detail.textContent = result.detail;
-      item.append(name, detail);
-      list.appendChild(item);
-    }
-    $('selfTestDialog').showModal();
-    setLastAction('Self-test: ' + passed + ' of ' + results.length + ' passed.');
-  }
-
   // ---------------------------------------------------------- wire-up events --
   function wireEvents() {
     $('addBtn').addEventListener('click', () => openVehicleDialog(null));
@@ -752,13 +730,6 @@
     $('historySearch').addEventListener('input', () => refreshAll());
     $('historyReceiptBtn').addEventListener('click', () => showHistoryReceipt());
     $('saveBtn').addEventListener('click', () => save());
-    $('selfTestBtn').addEventListener('click', () => runSelfTest());
-    $('errorsBtn').addEventListener('click', async () => {
-      if (!(await confirmDiscard())) return;
-      const [vehicles, revenue, history] = await Promise.all([
-        fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
-      loadFromFiles(vehicles, revenue, history, 'vehicles_with_errors.txt (not saved until you choose Save)');
-    });
     $('resetBtn').addEventListener('click', async () => {
       const ok = await confirmAction('Restore sample data',
         'Replace all vehicles, the revenue and the rental history with the original sample data? ' +
@@ -803,10 +774,6 @@
       app = new engine.WebApp();
       setButtonsEnabled(true);
       wireEvents();
-      $('engineStatus').textContent = 'C++ engine ready';
-      $('engineStatus').title = 'The business logic runs as C++ compiled to WebAssembly';
-      $('engineStatus').classList.add('ready');
-
       const savedVehicles = storageGet(STORAGE_VEHICLES);
       const savedRevenue = storageGet(STORAGE_REVENUE);
       const savedHistory = storageGet(STORAGE_HISTORY);
@@ -816,7 +783,7 @@
         await loadSample();
       }
     } catch (error) {
-      $('engineStatus').textContent = 'The C++ engine could not be loaded: ' + error.message;
+      $('engineStatus').textContent = 'The system could not be started: ' + error.message;
       $('engineStatus').classList.add('failed');
     }
   }

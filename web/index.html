@@ -28,19 +28,9 @@
             <button type="button" role="menuitem" id="resetBtn">Restore sample data</button>
           </div>
         </div>
-        <div class="menu">
-          <button type="button" class="menu-button" aria-haspopup="true" aria-expanded="false" id="helpMenuBtn">Help</button>
-          <div class="menu-list" role="menu" aria-labelledby="helpMenuBtn" hidden>
-            <button type="button" role="menuitem" id="selfTestBtn">Run Business Rule Self-Test</button>
-            <button type="button" role="menuitem" id="errorsBtn">Load test file with errors</button>
-            <hr>
-            <a role="menuitem" href="about.html">About this project</a>
-            <a role="menuitem" href="https://github.com/wingstech2026-byte/Car_Rental_Management_System" target="_blank" rel="noopener">Source code on GitHub</a>
-          </div>
-        </div>
       </nav>
 
-      <span class="engine" id="engineStatus">Starting&hellip;</span>
+      <span class="engine" id="engineStatus" role="status"></span>
       <input type="file" id="fileInput" accept=".txt,text/plain" multiple hidden>
     </header>
 
@@ -139,7 +129,7 @@
         </table>
       </div>
       <div class="panel-actions split">
-        <span class="hint">Every return is archived here and saved to history.txt. Double-click a record to see its receipt again.</span>
+        <span class="hint">Every return is archived here. Double-click a record to see its receipt again.</span>
         <button class="btn" id="historyReceiptBtn" type="button" disabled>Show Receipt&hellip;</button>
       </div>
     </section>
@@ -214,15 +204,6 @@
       <h3 id="confirmTitle">Car Rental Management System</h3>
       <p id="confirmText"></p>
       <div class="dlg-actions"><button type="submit" class="btn" value="cancel">Cancel</button><button type="submit" class="btn btn-primary" value="ok" id="confirmOk">OK</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="selfTestDialog" class="dlg dlg-wide" aria-labelledby="selfTestTitle">
-    <form method="dialog">
-      <h3 id="selfTestTitle">Business Rule Self-Test</h3>
-      <p id="selfTestSummary"></p>
-      <ul class="test-list" id="selfTestList"></ul>
-      <div class="dlg-actions"><button type="submit" class="btn btn-primary">OK</button></div>
     </form>
   </dialog>
 

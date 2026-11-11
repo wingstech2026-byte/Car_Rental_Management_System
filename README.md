@@ -522,7 +522,7 @@ Deposits, insurance and traffic violations are intentionally **out of scope**.
 
 ## 7. Web version of the system (Vercel)
 
-The `web/` folder contains the **web version of the system**: `index.html` is the full application (File and Help menus, the three tabs, dialogs, receipts, status bar), and `about.html` explains the project. It runs **the same C++ business logic in the browser**. Data is saved in the browser with File > Save (Ctrl+S); File > Open data files… and File > Download data files read and write the same `vehicles.txt` / `revenue.txt` format as the desktop program.
+The `web/` folder contains the **web version of the system**: `index.html` is the full application (File menu, the four tabs, dialogs, receipts, status bar) and nothing else is published. It runs **the same C++ business logic in the browser**. Data is saved in the browser with File > Save (Ctrl+S); File > Open data files… and File > Download data files read and write the same `vehicles.txt` / `revenue.txt` / `history.txt` format as the desktop program.
 
 - `web/wasm/WebBindings.cpp` is a small C++ bridge. It plays the role of the desktop dialogs, calling `RentalAgency` and catching `RentalException` exactly like `ModalDialog::handleOk()`.
 - `web/build.sh` compiles the business classes in `CarRentalSystem/` (`Money`, `Vehicle`, `RentalAgency`, `Validation`, `TextFileDataStore`, …) together with the bridge to WebAssembly using **Emscripten**. Only the Win32 GUI files are left out; the page in `web/index.html` + `web/app.js` replaces them and contains no business rules.
