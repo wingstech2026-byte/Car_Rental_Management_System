@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>About the Project</title>
+  <meta name="description" content="Object-oriented C++17 / Win32 car rental management system - how it is designed and built.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Cpath d='M14 38l5-12c1-3 3-4 6-4h14c3 0 5 1 6 4l5 12v8h-6v-4H20v4h-6z' fill='white'/%3E%3Ccircle cx='22' cy='38' r='3' fill='%232563eb'/%3E%3Ccircle cx='42' cy='38' r='3' fill='%232563eb'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="28" height="28"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M14 38l5-12c1-3 3-4 6-4h14c3 0 5 1 6 4l5 12v8h-6v-4H20v4h-6z" fill="#fff"/></svg>
+        </span>
+        <span>Car Rental MS</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="./">Open the system</a>
+        <a href="#features">Features</a>
+        <a href="#oop">OOP design</a>
+        <a href="#uml">UML</a>
+        <a href="#build">Build</a>
+      </nav>
+      <a class="btn btn-ghost btn-sm" href="https://github.com/wingstech2026-byte/Car_Rental_Management_System" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ================= HERO ================= -->
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">C++17 &middot; Win32 API &middot; Object-Oriented Programming</p>
+          <h1>Car Rental Management System</h1>
+          <p class="lead">A native Windows desktop application for managing a rental fleet: add and edit vehicles, search by model, rent and return them with receipts, and track cumulative revenue. It is built with clean OOP design: encapsulation, inheritance, polymorphism and an exception hierarchy.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="./">Open the system</a>
+            <a class="btn btn-ghost" href="https://github.com/wingstech2026-byte/Car_Rental_Management_System" target="_blank" rel="noopener">View source on GitHub</a>
+          </div>
+          <ul class="hero-facts">
+            <li><strong>0</strong> third-party libraries</li>
+            <li><strong>/W4</strong> warning level</li>
+            <li><strong>33</strong> built-in rule checks</li>
+          </ul>
+        </div>
+        <div class="hero-card" aria-hidden="true">
+          <div class="mock-titlebar"><span></span><span></span><span></span><em>Car Rental Management System *</em></div>
+          <div class="mock-tabs"><b>Fleet</b><i>Search &amp; Rent</i><i>Rentals &amp; Returns</i></div>
+          <div class="mock-rows">
+            <div class="ok"><span>ABC-123</span><span>Toyota Corolla</span><span>150.00</span><span>Available</span></div>
+            <div class="rent"><span>BMW-520</span><span>BMW 520i</span><span>350.00</span><span>Rented</span></div>
+            <div class="ok"><span>CAM-330</span><span>Toyota Camry</span><span>180.00</span><span>Available</span></div>
+            <div class="rent"><span>COR-202</span><span>Toyota Corolla</span><span>155.00</span><span>Rented</span></div>
+            <div class="ok"><span>HON-111</span><span>Honda Civic</span><span>140.00</span><span>Available</span></div>
+          </div>
+          <div class="mock-status">Total vehicles: 8 &nbsp;|&nbsp; Available: 5 &nbsp;|&nbsp; Rented: 3 &nbsp;|&nbsp; Revenue: 3,250.00</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FEATURES ================= -->
+    <section id="features" class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Required functions</h2>
+          <p>Each function is a single method on <code>RentalAgency</code>, and every rule is enforced in the business layer rather than only in the GUI.</p>
+        </div>
+        <div class="cards three">
+          <article class="card"><span class="num-badge">1</span><h3>Add vehicles</h3><p>Plates are unique (case-insensitive) and stored in upper case. Only letters, digits and <code>-</code> are allowed. The daily rate must be positive.</p></article>
+          <article class="card"><span class="num-badge">2</span><h3>Edit vehicles</h3><p>Change the model and daily rate of <em>available</em> vehicles. The plate can never change, and rented vehicles are refused.</p></article>
+          <article class="card"><span class="num-badge">3</span><h3>Search by model</h3><p>Case-insensitive partial match: <code>cor</code> finds "Toyota Corolla". Only available vehicles are shown, and an empty search lists them all.</p></article>
+          <article class="card"><span class="num-badge">4</span><h3>Rent</h3><p>Records the renter's name and phone and an agreed daily rate. The rate is pre-filled but can be changed. The status becomes Rented.</p></article>
+          <article class="card"><span class="num-badge">5</span><h3>Return</h3><p>Charge = agreed rate &times; days, with a live preview. The charge is added to revenue, the rental is cleared and a receipt is printed.</p></article>
+          <article class="card"><span class="num-badge">6</span><h3>Rentals &amp; revenue</h3><p>Lists every rented vehicle with renter details and shows the cumulative rental revenue, always with two decimals.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= OOP ================= -->
+    <section id="oop" class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Object-oriented design</h2>
+          <p>The code has three layers. The GUI only calls <code>RentalAgency</code>, and the business layer never shows a window.</p>
+        </div>
+
+        <div class="layers" aria-label="Architecture layers">
+          <div class="layer l-gui"><strong>GUI layer</strong><span>MainWindow &middot; ModalDialog &rarr; AddEditVehicleDialog, RentDialog, ReturnDialog &middot; ReportListView</span></div>
+          <div class="layer-arrow" aria-hidden="true">calls methods &darr; &nbsp; catches RentalException &uarr;</div>
+          <div class="layer l-logic"><strong>Business layer</strong><span>RentalAgency &rarr; Vehicle &rarr; Rental &rarr; Renter &middot; Money &middot; Receipt &middot; Validation</span></div>
+          <div class="layer-arrow" aria-hidden="true">through the IDataStore interface only &darr;</div>
+          <div class="layer l-data"><strong>Persistence layer</strong><span>IDataStore &larr; TextFileDataStore, InMemoryDataStore</span></div>
+        </div>
+
+        <div class="cards two">
+          <article class="card">
+            <h3>Encapsulation</h3>
+            <p>All data members are private, and objects enforce their own rules: <code>Vehicle::rent()</code> throws if the vehicle is already rented, and <code>Vehicle::edit()</code> throws if it is rented. <code>Money</code> hides its integer cents. Constructors validate, so an invalid object can never exist.</p>
+          </article>
+          <article class="card">
+            <h3>Inheritance</h3>
+            <p><code>IDataStore</code> &larr; <code>TextFileDataStore</code>, <code>InMemoryDataStore</code>.<br><code>std::runtime_error</code> &larr; <code>RentalException</code> &larr; six specific exceptions.<br><code>ModalDialog</code> &larr; three dialogs.</p>
+          </article>
+          <article class="card">
+            <h3>Polymorphism</h3>
+            <p><code>RentalAgency::loadFrom(IDataStore&amp;)</code> calls the pure virtual <code>load()</code> and <code>save()</code>, and the implementation is chosen at run time. Dialogs use the Template Method pattern through virtual <code>onInitDialog()</code> and <code>onOk()</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Exception handling</h3>
+            <p>Business classes throw and the GUI catches. When a value is invalid, the dialog stays open and the bad field is focused. Every operation has the strong guarantee: if it fails, nothing changes.</p>
+          </article>
+          <article class="card">
+            <h3>Value class &amp; operators</h3>
+            <p><code>Money</code> stores cents in a <code>long long</code>, never a float, so 0.10 + 0.20 is exactly 0.30. It overloads <code>+</code>, <code>*</code>, the comparison operators and <code>&lt;&lt;</code>.</p>
+          </article>
+          <article class="card">
+            <h3>RAII &amp; modern C++</h3>
+            <p>There is no raw <code>new</code> or <code>delete</code>. The code uses <code>std::map</code>, <code>std::optional</code>, a <code>unique_ptr</code> that owns fonts, const-correct getters and no global variables.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= UML ================= -->
+    <section id="uml" class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>UML class diagram</h2>
+          <p>Business logic, persistence and exceptions. The full diagrams, including the GUI layer, are in the README.</p>
+        </div>
+        <div class="uml-box">
+          <pre class="mermaid" id="umlDiagram">
+classDiagram
+    direction TB
+    class Money {
+        -long long m_cents
+        +parse(wstring text)$ Money
+        +toString() wstring
+        +operator+(Money) Money
+        +operator*(int days) Money
+    }
+    class Renter {
+        -wstring m_name
+        -wstring m_phone
+    }
+    class Rental {
+        -Renter m_renter
+        -Money m_agreedDailyRate
+        +calculateCharge(int days) Money
+    }
+    class Vehicle {
+        -wstring m_plate
+        -wstring m_model
+        -Money m_dailyRate
+        -VehicleStatus m_status
+        -optional~Rental~ m_rental
+        +edit(wstring model, Money rate) void
+        +rent(Renter renter, Money agreedRate) void
+        +returnVehicle(int days) Receipt
+    }
+    class Receipt {
+        -Money m_totalCharge
+        +toDisplayText() wstring
+    }
+    class RentalAgency {
+        -map~wstring, Vehicle~ m_fleet
+        -Money m_revenue
+        +addVehicle() Vehicle
+        +editVehicle() void
+        +searchAvailableByModel(wstring query) vector~Vehicle~
+        +rentVehicle() void
+        +returnVehicle(wstring plate, int days) Receipt
+        +getRentedVehicles() vector~Vehicle~
+        +getRevenue() Money
+        +loadFrom(IDataStore store) vector~wstring~
+        +saveTo(IDataStore store) void
+    }
+    class IDataStore {
+        <<interface>>
+        +load()* LoadResult
+        +save(vector~Vehicle~, Money)* void
+    }
+    class TextFileDataStore
+    class InMemoryDataStore
+    class RentalException
+    class ValidationException
+    class DuplicatePlateException
+    class VehicleNotAvailableException
+    class VehicleNotRentedException
+
+    RentalAgency "1" *-- "0..*" Vehicle
+    Vehicle "1" *-- "0..1" Rental
+    Rental *-- Renter
+    Vehicle ..> Receipt : creates
+    RentalAgency ..> IDataStore : uses
+    IDataStore <|.. TextFileDataStore
+    IDataStore <|.. InMemoryDataStore
+    RentalException <|-- ValidationException
+    RentalException <|-- DuplicatePlateException
+    RentalException <|-- VehicleNotAvailableException
+    RentalException <|-- VehicleNotRentedException
+          </pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= BUILD ================= -->
+    <section id="build" class="section">
+      <div class="wrap build-grid">
+        <div>
+          <h2>Build the desktop app</h2>
+          <ol class="steps">
+            <li>Install <strong>Visual Studio 2022</strong> with the <em>Desktop development with C++</em> workload.</li>
+            <li>Clone the repository and open <code>CarRentalSystem.sln</code>.</li>
+            <li>Select <strong>Debug | x64</strong> and press <kbd>F5</kbd>.</li>
+          </ol>
+          <p class="muted">The project is already configured for C++17, Unicode, warning level <code>/W4</code> and the Windows subsystem, and it links <code>comctl32</code>. Sample data is copied next to the <code>.exe</code> automatically.</p>
+          <pre class="code"><code>git clone https://github.com/wingstech2026-byte/Car_Rental_Management_System.git</code></pre>
+        </div>
+        <div>
+          <h2>Validation rules</h2>
+          <table class="rules">
+            <tbody>
+              <tr><th>Plate</th><td>Not empty; A&ndash;Z, 0&ndash;9 and <code>-</code>; unique, ignoring case</td></tr>
+              <tr><th>Model / name</th><td>Not empty; no <code>|</code> (the file separator)</td></tr>
+              <tr><th>Rates</th><td>&gt; 0.00, at most 2 decimals, &le; 1,000,000.00</td></tr>
+              <tr><th>Telephone</th><td>6&ndash;20 characters: digits, spaces, <code>-</code>, optional leading <code>+</code></td></tr>
+              <tr><th>Rental days</th><td>Whole number from 1 to 3650</td></tr>
+              <tr><th>Status</th><td>No re-renting or editing while rented; only rented vehicles can be returned</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">Car Rental Management System &middot; C++17 / Win32 OOP course project &middot; <a href="https://github.com/wingstech2026-byte/Car_Rental_Management_System" target="_blank" rel="noopener">Source on GitHub</a></div>
+  </footer>
+
+  <script type="module">
+    try {
+      const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs');
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral', securityLevel: 'strict' });
+      await mermaid.run({ nodes: [document.getElementById('umlDiagram')] });
+    } catch (error) {
+      document.getElementById('umlDiagram').classList.add('mermaid-failed');
+    }
+  </script>
+</body>
+</html>

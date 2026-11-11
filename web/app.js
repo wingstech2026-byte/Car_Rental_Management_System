@@ -197,6 +197,20 @@
     $('messageDialog').showModal();
   }
 
+  // Asks a yes/no question in the application's own style. Resolves to true for OK.
+  function confirmAction(title, text, okLabel) {
+    return new Promise((resolve) => {
+      const dialog = $('confirmDialog');
+      $('confirmTitle').textContent = title;
+      $('confirmText').textContent = text;
+      $('confirmOk').textContent = okLabel || 'OK';
+      dialog.returnValue = 'cancel';
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'), { once: true });
+      dialog.showModal();
+      $('confirmOk').focus();
+    });
+  }
+
   function setupDialog(dialog, onOk) {
     const form = dialog.querySelector('form');
     const errorBox = dialog.querySelector('.dlg-error');
@@ -308,6 +322,7 @@
     $('sbRevenue').textContent = 'Revenue: ' + current.revenue;
     $('sbAction').textContent = lastAction;
     $('appTitle').textContent = 'Car Rental Management System' + (current.modified ? ' *' : '');
+    document.title = (current.modified ? '* ' : '') + 'Car Rental Management System';
     updateButtons();
   }
 
@@ -402,6 +417,40 @@
   });
 
   let returningPlate = null;
+  let lastReceipt = null;
+
+  // Prints the last receipt (opens a small printable page).
+  function printReceipt() {
+    if (!lastReceipt) return;
+    const receipt = lastReceipt;
+    const rows = [
+      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
+      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
+      ['TOTAL CHARGE', receipt.rate + ' × ' + receipt.days + ' = ' + receipt.total],
+    ];
+    const win = window.open('', '_blank', 'width=480,height=600');
+    if (!win) { showMessage('Print', 'Please allow pop-ups for this site to print the receipt.'); return; }
+    const doc = win.document;
+    doc.title = 'Rental Receipt ' + receipt.plate;
+    const style = doc.createElement('style');
+    style.textContent = 'body{font:14px/1.6 "Segoe UI",Arial,sans-serif;margin:32px;color:#111}' +
+      'h1{font-size:20px;margin:0 0 4px}p{margin:0 0 20px;color:#555}table{border-collapse:collapse;width:100%}' +
+      'td{padding:6px 0;border-bottom:1px solid #ddd}td+td{text-align:right;font-weight:600}tr:last-child td{font-size:16px;border-bottom:0;padding-top:12px}';
+    doc.head.appendChild(style);
+    const heading = doc.createElement('h1');
+    heading.textContent = 'Car Rental Management System';
+    const sub = doc.createElement('p');
+    sub.textContent = 'Rental receipt – ' + new Date().toLocaleString();
+    const table = doc.createElement('table');
+    for (const [label, value] of rows) {
+      const tr = table.insertRow();
+      tr.insertCell().textContent = label;
+      tr.insertCell().textContent = value;
+    }
+    doc.body.append(heading, sub, table);
+    win.focus();
+    win.print();
+  }
 
   function updatePreview() {
     const days = $('returnDialog').querySelector('form').elements.days.value;
@@ -444,6 +493,7 @@
         ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
         ['Total charge', receipt.rate + ' × ' + receipt.days + ' = ' + receipt.total],
       ]);
+      lastReceipt = receipt;
       setTimeout(() => $('receiptDialog').showModal(), 0);
     }
     return result;
@@ -508,8 +558,83 @@
     loadFromFiles(vehicles, revenue, 'the sample data');
   }
 
-  function confirmDiscard() {
-    return !current.modified || window.confirm('You have unsaved changes. Discard them?');
+  async function confirmDiscard() {
+    return !current.modified ||
+      confirmAction('Unsaved changes', 'You have unsaved changes. Discard them and continue?', 'Discard changes');
+  }
+
+  function readFileText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Could not read ' + file.name));
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  // File > Open data files...: the user picks vehicles.txt (and optionally revenue.txt).
+  async function openDataFiles(fileList) {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    if (!(await confirmDiscard())) return;
+    const revenueFile = files.find((file) => /revenue/i.test(file.name));
+    const vehicleFile = files.find((file) => file !== revenueFile);
+    const vehiclesText = vehicleFile ? await readFileText(vehicleFile) : readDataFile('vehicles.txt');
+    const revenueText = revenueFile ? await readFileText(revenueFile) : readDataFile('revenue.txt');
+    loadFromFiles(vehiclesText, revenueText, files.map((file) => file.name).join(' + '));
+    // Keep the opened files as the saved data of this browser.
+    storageSet(STORAGE_VEHICLES, vehiclesText);
+    storageSet(STORAGE_REVENUE, revenueText);
+  }
+
+  function downloadText(fileName, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // File > Download data files: saves, then downloads vehicles.txt and revenue.txt
+  // exactly as written by the C++ TextFileDataStore.
+  function downloadDataFiles() {
+    if (!save()) return;
+    downloadText('vehicles.txt', readDataFile('vehicles.txt'));
+    setTimeout(() => downloadText('revenue.txt', readDataFile('revenue.txt')), 300);
+    setLastAction('Saved and downloaded vehicles.txt and revenue.txt.');
+  }
+
+  // ------------------------------------------------------------------ menus --
+  function setupMenus() {
+    const menus = Array.from(document.querySelectorAll('.menu'));
+    const closeAll = (except) => menus.forEach((menu) => {
+      if (menu === except) return;
+      menu.querySelector('.menu-list').hidden = true;
+      menu.querySelector('.menu-button').setAttribute('aria-expanded', 'false');
+    });
+    for (const menu of menus) {
+      const button = menu.querySelector('.menu-button');
+      const list = menu.querySelector('.menu-list');
+      button.addEventListener('click', () => {
+        const open = list.hidden;
+        closeAll(menu);
+        list.hidden = !open;
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) list.querySelector('[role=menuitem]').focus();
+      });
+      list.addEventListener('click', (event) => { if (event.target.closest('[role=menuitem]')) closeAll(); });
+      list.addEventListener('keydown', (event) => {
+        const items = Array.from(list.querySelectorAll('[role=menuitem]'));
+        const index = items.indexOf(document.activeElement);
+        if (event.key === 'ArrowDown') { event.preventDefault(); items[(index + 1) % items.length].focus(); }
+        if (event.key === 'ArrowUp') { event.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
+        if (event.key === 'Escape') { event.preventDefault(); closeAll(); button.focus(); }
+      });
+    }
+    document.addEventListener('click', (event) => { if (!event.target.closest('.menu')) closeAll(); });
   }
 
   // ------------------------------------------------------------------- tabs --
@@ -571,21 +696,32 @@
     $('saveBtn').addEventListener('click', () => save());
     $('selfTestBtn').addEventListener('click', () => runSelfTest());
     $('errorsBtn').addEventListener('click', async () => {
-      if (!confirmDiscard()) return;
+      if (!(await confirmDiscard())) return;
       const [vehicles, revenue] = await Promise.all([fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt')]);
-      loadFromFiles(vehicles, revenue, 'vehicles_with_errors.txt');
+      loadFromFiles(vehicles, revenue, 'vehicles_with_errors.txt (not saved until you choose Save)');
     });
-    $('resetDemo').addEventListener('click', async () => {
-      if (!window.confirm('Reset the demo to the original sample data? Your saved demo data in this browser will be deleted.')) return;
+    $('resetBtn').addEventListener('click', async () => {
+      const ok = await confirmAction('Restore sample data',
+        'Replace all vehicles and the revenue with the original sample data? Your saved data in this browser will be deleted.',
+        'Restore sample data');
+      if (!ok) return;
       storageRemove(STORAGE_VEHICLES);
       storageRemove(STORAGE_REVENUE);
       await loadSample();
     });
+    $('openBtn').addEventListener('click', () => $('fileInput').click());
+    $('fileInput').addEventListener('change', async (event) => {
+      try { await openDataFiles(event.target.files); } catch (error) { reject(error.message); }
+      event.target.value = '';
+    });
+    $('downloadBtn').addEventListener('click', () => downloadDataFiles());
+    $('printReceiptBtn').addEventListener('click', () => printReceipt());
+    setupMenus();
     document.addEventListener('keydown', (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && app) {
-        event.preventDefault();
-        save();
-      }
+      if (!(event.ctrlKey || event.metaKey) || !app) return;
+      const key = event.key.toLowerCase();
+      if (key === 's') { event.preventDefault(); save(); }
+      if (key === 'f') { event.preventDefault(); selectTab('search'); $('searchInput').select(); }
     });
     window.addEventListener('beforeunload', (event) => {
       if (current.modified) { event.preventDefault(); event.returnValue = ''; }
@@ -606,13 +742,14 @@
       app = new engine.WebApp();
       setButtonsEnabled(true);
       wireEvents();
-      $('engineStatus').textContent = 'C++ engine: WebAssembly ✓';
+      $('engineStatus').textContent = 'C++ engine ready';
+      $('engineStatus').title = 'The business logic runs as C++ compiled to WebAssembly';
       $('engineStatus').classList.add('ready');
 
       const savedVehicles = storageGet(STORAGE_VEHICLES);
       const savedRevenue = storageGet(STORAGE_REVENUE);
       if (savedVehicles !== null) {
-        loadFromFiles(savedVehicles, savedRevenue || '', 'your saved demo data');
+        loadFromFiles(savedVehicles, savedRevenue || '', 'your saved data');
       } else {
         await loadSample();
       }

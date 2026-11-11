@@ -279,3 +279,50 @@ input.invalid { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-
   .mock-rows div { grid-template-columns: 1fr 1.4fr 0.9fr; }
   .mock-rows div span:nth-child(4) { display: none; }
 }
+
+/* ---- Full-screen application page (index.html) ---------------------------- */
+body.app-page { height: 100dvh; overflow: hidden; background: var(--bg); }
+.app-full {
+  height: 100dvh; display: flex; flex-direction: column;
+  border: 0; border-radius: 0; box-shadow: none;
+}
+.app-header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.app-brand { display: flex; align-items: center; gap: 10px; color: var(--primary); }
+.app-brand h1 { font-size: 16px; margin: 0; color: var(--text); letter-spacing: 0; line-height: 1.3; }
+.app-header .menubar { border: 0; padding: 0; }
+.app-full .tabs { background: var(--surface); }
+.app-full .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 16px; }
+.app-full .panel[hidden] { display: none; }
+.app-full .table-wrap { flex: 1; min-height: 160px; max-height: none; background: var(--surface); }
+.app-full .statusbar { flex: none; }
+
+.menu { position: relative; }
+.menu-button[aria-expanded="true"] { background: var(--surface-2); }
+.menu-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 250px;
+  display: grid; padding: 6px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow);
+}
+.menu-list[hidden] { display: none; }
+.menu-list [role="menuitem"] {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  border: 0; background: none; color: var(--text); text-align: left; text-decoration: none;
+  font: 14px var(--font); padding: 8px 10px; border-radius: 6px; cursor: pointer;
+}
+.menu-list [role="menuitem"]:hover, .menu-list [role="menuitem"]:focus-visible { background: var(--primary-soft); outline: none; }
+.menu-list hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
+.menu-list kbd { font-size: 11px; color: var(--muted); }
+
+@media (max-width: 600px) {
+  body.app-page { overflow: auto; height: auto; }
+  .app-full { height: auto; min-height: 100dvh; }
+  .app-brand h1 { font-size: 15px; }
+  .app-header .engine { width: auto; margin-left: auto; }
+}
+
+/* Tab strip: no stray scroll bar; the active tab is underlined instead of overlapping the border. */
+.tabs { overflow-x: auto; overflow-y: hidden; }
+.tabs button[aria-selected="true"] { margin-bottom: 0; border-color: transparent; background: transparent; box-shadow: inset 0 -3px 0 var(--primary); }
