@@ -47,7 +47,8 @@ private:
     static constexpr int FleetTab = 0;
     static constexpr int SearchTab = 1;
     static constexpr int RentalsTab = 2;
-    static constexpr int TabCount = 3;
+    static constexpr int HistoryTab = 3;
+    static constexpr int TabCount = 4;
 
     // ---- Window procedure plumbing -----------------------------------------------
     static bool registerWindowClasses(HINSTANCE instance);
@@ -61,11 +62,13 @@ private:
     void createFleetPage(HWND page);
     void createSearchPage(HWND page);
     void createRentalsPage(HWND page);
+    void createHistoryPage(HWND page);
     void applyFonts();
     void layout();
     void layoutFleetPage(int width, int height);
     void layoutSearchPage(int width, int height);
     void layoutRentalsPage(int width, int height);
+    void layoutHistoryPage(int width, int height);
     void updateStatusBarParts();
     int scale(int value) const noexcept;
 
@@ -81,6 +84,7 @@ private:
     void onEditVehicle();
     void onRentVehicle();
     void onReturnVehicle();
+    void onShowHistoryReceipt();
     bool onSave();
     bool confirmSaveChanges();
     void onAbout() const;
@@ -91,6 +95,7 @@ private:
     void refreshFleet();
     void refreshSearch();
     void refreshRentals();
+    void refreshHistory();
     void refreshStatusBar();
     void updateButtons();
     void updateTitle();
@@ -137,6 +142,13 @@ private:
     ReportListView m_rentalsList;
     HWND m_rentalsHint = nullptr;
     HWND m_returnButton = nullptr;
+
+    // Rental History tab
+    HWND m_historySummary = nullptr;
+    HWND m_historyLabel = nullptr;
+    HWND m_historySearch = nullptr;
+    ReportListView m_historyList;
+    HWND m_historyHint = nullptr;
 
     Gui::FontHandle m_font;       ///< Segoe UI 9 pt, DPI-scaled.
     Gui::FontHandle m_titleFont;  ///< Large bold font for the revenue label.

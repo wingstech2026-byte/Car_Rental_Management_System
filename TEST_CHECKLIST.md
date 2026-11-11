@@ -22,7 +22,7 @@ Run the tests **in order**: the later revenue figures depend on the earlier step
 | HON-222 | Honda Civic | 145.50 | Rented | Maria Garcia / 0912-345-678 / 145.50 |
 | TES-003 | Tesla Model 3 | 275.00 | Available | |
 
-Cumulative revenue: **3,250.00**.
+Cumulative revenue: **3,250.00**. Rental history: **4 completed rentals** (receipts 1-4), which together add up to 3,250.00.
 
 Use the ☐ boxes to tick off each test.
 
@@ -180,7 +180,7 @@ Rentals & Returns tab → select **HON-222** (Maria Garcia, 145.50) → **Return
 | 9.1 | Close the program. Copy `CarRentalSystem\data\vehicles_with_errors.txt` over `x64\Debug\vehicles.txt`. Start the program. | **One** warning dialog: *"10 entries in the data files could not be loaded and were skipped:"*. It lists line 2 (duplicate plate ABC-123), line 3 (invalid plate "BAD PLATE"), line 4 (rate -20.00), line 5 (rate 99.999, more than 2 decimals), line 6 (Rented without renter information), line 7 (expected 7 fields, found 3), line 8 (empty model), line 9 (invalid telephone), line 10 (rate 0), line 11 (unknown status "Lost"). | ☐ |
 | 9.2 | Click OK. | The fleet contains only **ABC-123** and **NEW-009** (the valid lines). | ☐ |
 | 9.3 | Close the program. There is no save prompt, because loading is not a change. Replace the content of `revenue.txt` with the text `abc`. Start the program. | Warning: *"revenue.txt skipped: "abc" is not a valid amount - cumulative revenue starts at 0.00."* Revenue shows 0.00. | ☐ |
-| 9.4 | Close. **Delete** both `vehicles.txt` and `revenue.txt`. Start the program. | No error. Empty fleet, revenue 0.00 (missing files = empty data). | ☐ |
+| 9.4 | Close. **Delete** `vehicles.txt`, `revenue.txt` and `history.txt`. Start the program. | No error. Empty fleet, revenue 0.00, empty rental history (missing files = empty data). | ☐ |
 | 9.5 | Close. Build again (the sample data is copied back) to restore the starting data. | — | ☐ |
 
 ## 10. Keyboard and usability
@@ -199,4 +199,19 @@ Rentals & Returns tab → select **HON-222** (Maria Garcia, 145.50) → **Return
 
 | # | Action | Expected result | ☐ |
 |---|---|---|---|
-| 11.1 | **Help > Run Business Rule Self-Test** | *"33 of 33 business-rule checks passed."* It lists `[PASS]` for every rule: duplicate plate, invalid plate, empty/`\|` model, invalid rates, empty name, invalid phones, renting a rented vehicle, editing a rented vehicle, returning an available vehicle, invalid days (0, -2, 2.5, abc, empty, 99999), the correct charge (140.50 × 3 = 421.50), exact money arithmetic, and the save/load round trip through `IDataStore&` (polymorphism). It runs on a temporary agency, so your real data is unchanged (the title does not get a `*`). | ☐ |
+| 11.1 | **Help > Run Business Rule Self-Test** | *"36 of 36 business-rule checks passed."* It lists `[PASS]` for every rule: duplicate plate, invalid plate, empty/`\|` model, invalid rates, empty name, invalid phones, renting a rented vehicle, editing a rented vehicle, returning an available vehicle, invalid days (0, -2, 2.5, abc, empty, 99999), the correct charge (140.50 × 3 = 421.50), the rental history (archiving, search, invalid date rejected), exact money arithmetic, and the save/load round trip through `IDataStore&` (polymorphism). It runs on a temporary agency, so your real data is unchanged (the title does not get a `*`). | ☐ |
+
+## 12. Rental history
+
+Start from fresh sample data (step 9.5): 4 completed rentals in `history.txt`.
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 12.1 | Click the **Rental History** tab. | 4 records (receipts 1–4) with columns No., Returned, Plate, Model, Renter, Telephone, Rate, Days, Charge. Summary: **"4 completed rentals \| Total charged: 3,250.00"**, the same as the cumulative revenue. | ☐ |
+| 12.2 | Type `emma` in **Search history**. | Only receipt 1 (ABC-123, Emma Wilson, 150.00 × 4 = 600.00). Summary: "1 record matches "emma" \| Total charged: 600.00". | ☐ |
+| 12.3 | Type `civic`. | Only receipt 2 (HON-111, Liam Chen, 700.00). The search also matches plate and telephone, for example `0918` finds receipt 4. | ☐ |
+| 12.4 | Clear the search. Click the **Charge** header twice. | Sorted by charge, highest first: receipt 3 (1,050.00) is at the top. | ☐ |
+| 12.5 | **Double-click** receipt 3 (or select it and press Enter). | The receipt is shown again: "Receipt no. 3 - 2026-10-20 12:40", BMW-520, Sofia Rossi, 350.00 x 3 = 1,050.00. | ☐ |
+| 12.6 | Rentals & Returns: return **HON-222** for `3` days. | The receipt now starts with **"Receipt no. 5 - <today's date and time>"**. Rental History shows 5 records and "Total charged: 3,686.50", matching the new revenue. | ☐ |
+| 12.7 | **Ctrl+S**, close and restart. Open `x64\Debug\history.txt` in Notepad. | The history still has 5 records. The file has a new line: `5\|<date>\|HON-222\|Honda Civic\|Maria Garcia\|0912-345-678\|145.50\|3\|436.50`. | ☐ |
+| 12.8 | Close the program. In `history.txt`, change the last value of line 5 from `436.50` to `999.00`. Start the program. | Warning: *"history.txt line 5 skipped: the charge 999.00 does not equal agreed rate x days (436.50)."* The history shows 4 records. Change the value back to `436.50` afterwards. | ☐ |

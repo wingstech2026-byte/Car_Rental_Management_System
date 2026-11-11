@@ -57,6 +57,11 @@
 #define IDC_RENTALS_HINT        2013
 #define IDC_RETURN_BUTTON       2014
 #define IDC_STATUS_BAR          2015
+#define IDC_HISTORY_SUMMARY     2016
+#define IDC_HISTORY_LABEL       2017
+#define IDC_HISTORY_SEARCH      2018
+#define IDC_HISTORY_LIST        2019
+#define IDC_HISTORY_HINT        2020
 #define IDC_PAGE_FIRST          2100
 
 // ---- Menu / accelerator commands -----------------------------------------------

@@ -43,7 +43,7 @@
           <ul class="hero-facts">
             <li><strong>0</strong> third-party libraries</li>
             <li><strong>/W4</strong> warning level</li>
-            <li><strong>33</strong> built-in rule checks</li>
+            <li><strong>36</strong> built-in rule checks</li>
           </ul>
         </div>
         <div class="hero-card" aria-hidden="true">
@@ -165,6 +165,12 @@ classDiagram
         -Money m_totalCharge
         +toDisplayText() wstring
     }
+    class RentalRecord {
+        -int m_number
+        -wstring m_returnedOn
+        -Receipt m_receipt
+        +matches(wstring query) bool
+    }
     class RentalAgency {
         -map~wstring, Vehicle~ m_fleet
         -Money m_revenue
@@ -175,13 +181,14 @@ classDiagram
         +returnVehicle(wstring plate, int days) Receipt
         +getRentedVehicles() vector~Vehicle~
         +getRevenue() Money
+        +searchHistory(wstring query) vector~RentalRecord~
         +loadFrom(IDataStore store) vector~wstring~
         +saveTo(IDataStore store) void
     }
     class IDataStore {
         <<interface>>
         +load()* LoadResult
-        +save(vector~Vehicle~, Money)* void
+        +save(vector~Vehicle~, Money, vector~RentalRecord~)* void
     }
     class TextFileDataStore
     class InMemoryDataStore
@@ -195,6 +202,8 @@ classDiagram
     Vehicle "1" *-- "0..1" Rental
     Rental *-- Renter
     Vehicle ..> Receipt : creates
+    RentalAgency "1" *-- "0..*" RentalRecord : history
+    RentalRecord *-- Receipt
     RentalAgency ..> IDataStore : uses
     IDataStore <|.. TextFileDataStore
     IDataStore <|.. InMemoryDataStore

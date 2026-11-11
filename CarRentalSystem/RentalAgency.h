@@ -15,6 +15,7 @@
 
 #include "Money.h"
 #include "Receipt.h"
+#include "RentalRecord.h"
 #include "Renter.h"
 #include "Vehicle.h"
 
@@ -46,7 +47,8 @@ public:
     /// @throws VehicleNotFoundException, VehicleNotAvailableException, ValidationException
     void rentVehicle(const std::wstring& plate, const Renter& renter, const Money& agreedDailyRate);
 
-    /// 5. Returns a rented vehicle, adds the charge to the revenue and gives a receipt.
+    /// 5. Returns a rented vehicle, adds the charge to the revenue, archives the
+    ///    rental in the history and gives a receipt.
     /// @throws VehicleNotFoundException, VehicleNotRentedException, ValidationException
     Receipt returnVehicle(const std::wstring& plate, int days);
 
@@ -55,6 +57,21 @@ public:
 
     /// 6. The cumulative rental revenue.
     Money getRevenue() const noexcept;
+
+    // ---- Rental history ----------------------------------------------------------
+
+    /// All completed rentals, oldest first.
+    std::vector<RentalRecord> getHistory() const;
+
+    /// Completed rentals whose plate, model, renter or telephone contains the query
+    /// (case-insensitive). An empty query returns the whole history.
+    std::vector<RentalRecord> searchHistory(const std::wstring& query) const;
+
+    /// The most recent completed rental. @throws RentalException if the history is empty.
+    const RentalRecord& getLastRecord() const;
+
+    /// Sum of the charges of the given records.
+    static Money totalCharged(const std::vector<RentalRecord>& records);
 
     // ---- Queries ----------------------------------------------------------------
 
@@ -92,8 +109,10 @@ public:
 private:
     Vehicle& findMutableVehicle(const std::wstring& plate);
     static std::wstring makeKey(const std::wstring& plate);
+    int nextReceiptNumber() const noexcept;
 
     std::map<std::wstring, Vehicle> m_fleet; ///< Key = upper-case plate (unique, sorted).
     Money m_revenue;                         ///< Cumulative rental revenue.
+    std::vector<RentalRecord> m_history;     ///< Completed rentals, oldest first.
     bool m_modified = false;                 ///< Unsaved changes?
 };

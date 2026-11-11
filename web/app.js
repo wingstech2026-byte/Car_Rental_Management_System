@@ -12,6 +12,7 @@
 (function () {
   const STORAGE_VEHICLES = 'crms.vehicles.txt';
   const STORAGE_REVENUE = 'crms.revenue.txt';
+  const STORAGE_HISTORY = 'crms.history.txt';
   const DATA_DIR = '/data';
 
   let engine = null;   // the compiled C++ module
@@ -38,9 +39,10 @@
   }
 
   // Write the two data files into the C++ program's (in-memory) file system.
-  function writeDataFiles(vehiclesText, revenueText) {
+  function writeDataFiles(vehiclesText, revenueText, historyText) {
     engine.FS.writeFile(DATA_DIR + '/vehicles.txt', vehiclesText);
     engine.FS.writeFile(DATA_DIR + '/revenue.txt', revenueText);
+    engine.FS.writeFile(DATA_DIR + '/history.txt', historyText);
   }
 
   function readDataFile(name) {
@@ -266,6 +268,13 @@
     onActivate: (key) => rentVehicle(key),
     emptyText: 'No available vehicle matches.',
   });
+  const historyTable = new ReportTable('historyTable', {
+    onSelect: () => updateButtons(),
+    onActivate: (key) => showHistoryReceipt(key),
+    emptyText: 'No completed rentals yet. Returned vehicles are archived here.',
+  });
+  let historyRecords = [];
+
   const rentalsTable = new ReportTable('rentalsTable', {
     onSelect: () => updateButtons(),
     onActivate: (key) => returnVehicle(key),
@@ -316,6 +325,29 @@
     })));
     $('revenueLabel').textContent = 'Cumulative Rental Revenue: ' + current.revenue;
 
+    // Rental History tab (RentalAgency::searchHistory in C++)
+    const historyQuery = $('historySearch').value.trim();
+    const history = call('history', historyQuery);
+    historyRecords = history.records;
+    historyTable.setRows(historyRecords.map((record) => ({
+      key: String(record.number),
+      cells: [
+        { text: String(record.number), sort: record.number },
+        { text: record.returnedOn, sort: record.returnedOn },
+        { text: record.plate, sort: record.plate },
+        { text: record.model, sort: record.model },
+        { text: record.renter, sort: record.renter },
+        { text: record.phone, sort: record.phone },
+        { text: record.rate, sort: record.rateCents },
+        { text: String(record.days), sort: record.days },
+        { text: record.total, sort: record.totalCents },
+      ],
+    })));
+    $('historySummary').textContent = (historyQuery === ''
+      ? countText(history.count, 'completed rental', 'completed rentals')
+      : countText(history.count, 'record matches', 'records match') + ' "' + historyQuery + '"') +
+      '   |   Total charged: ' + history.total;
+
     $('sbTotal').textContent = 'Total vehicles: ' + current.total;
     $('sbAvail').textContent = 'Available: ' + current.available;
     $('sbRented').textContent = 'Rented: ' + current.rented;
@@ -331,6 +363,7 @@
     $('editBtn').disabled = !(fleetRow && fleetRow.available);
     $('rentBtn').disabled = !searchTable.selectedRow();
     $('returnBtn').disabled = !rentalsTable.selectedRow();
+    $('historyReceiptBtn').disabled = !historyTable.selectedRow();
   }
 
   function reject(message) {
@@ -440,7 +473,7 @@
     const heading = doc.createElement('h1');
     heading.textContent = 'Car Rental Management System';
     const sub = doc.createElement('p');
-    sub.textContent = 'Rental receipt – ' + new Date().toLocaleString();
+    sub.textContent = 'Rental receipt no. ' + receipt.number + ' – returned ' + receipt.returnedOn;
     const table = doc.createElement('table');
     for (const [label, value] of rows) {
       const tr = table.insertRow();
@@ -486,18 +519,32 @@
     const result = call('returnVehicle', plate, form.elements.days.value);
     if (result.ok) {
       const receipt = result.receipt;
-      setLastAction('Returned ' + plate + ' - charged ' + receipt.total + '.');
+      setLastAction('Returned ' + plate + ' - charged ' + receipt.total + ' (receipt no. ' + receipt.number + ').');
       refreshAll();
-      fillDetails($('receiptDetails'), [
-        ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
-        ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
-        ['Total charge', receipt.rate + ' × ' + receipt.days + ' = ' + receipt.total],
-      ]);
-      lastReceipt = receipt;
-      setTimeout(() => $('receiptDialog').showModal(), 0);
+      setTimeout(() => showReceipt(receipt, false), 0);
     }
     return result;
   });
+
+  // Shows a receipt: a new one after a return, or a copy from the Rental History.
+  function showReceipt(receipt, isCopy) {
+    $('receiptTitle').textContent = isCopy ? 'Rental Receipt (copy)' : 'Rental Receipt';
+    $('receiptMeta').textContent = 'Receipt no. ' + receipt.number + ' – returned ' + receipt.returnedOn;
+    fillDetails($('receiptDetails'), [
+      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
+      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
+      ['Total charge', receipt.rate + ' × ' + receipt.days + ' = ' + receipt.total],
+    ]);
+    lastReceipt = receipt;
+    $('receiptDialog').showModal();
+  }
+
+  function showHistoryReceipt(key) {
+    const number = key || historyTable.selectedKey;
+    const record = historyRecords.find((item) => String(item.number) === number);
+    if (!record) { setLastAction('Select a record on the Rental History tab first.'); return; }
+    showReceipt(record, true);
+  }
 
   // Days box: digits only while typing (like ES_NUMBER); pasting is still
   // possible so that the C++ validation of "2.5", "-3", "abc" can be shown.
@@ -527,7 +574,8 @@
     const result = call('save'); // TextFileDataStore::save() through IDataStore&
     if (!result.ok) { reject('The data could not be saved. ' + result.message); return false; }
     const stored = storageSet(STORAGE_VEHICLES, readDataFile('vehicles.txt')) &&
-                   storageSet(STORAGE_REVENUE, readDataFile('revenue.txt'));
+                   storageSet(STORAGE_REVENUE, readDataFile('revenue.txt')) &&
+                   storageSet(STORAGE_HISTORY, readDataFile('history.txt'));
     setLastAction(stored
       ? 'Saved ' + countText(current.total, 'vehicle', 'vehicles') + ' and revenue ' + current.revenue + '.'
       : 'Saved for this session only (browser storage is unavailable).');
@@ -535,13 +583,14 @@
     return true;
   }
 
-  function loadFromFiles(vehiclesText, revenueText, sourceLabel) {
-    writeDataFiles(vehiclesText, revenueText);
+  function loadFromFiles(vehiclesText, revenueText, historyText, sourceLabel) {
+    writeDataFiles(vehiclesText, revenueText, historyText);
     const result = call('load'); // RentalAgency::loadFrom(IDataStore&)
     if (!result.ok) { reject(result.message); return; }
     fleetTable.selectedKey = null;
     searchTable.selectedKey = null;
     rentalsTable.selectedKey = null;
+    historyTable.selectedKey = null;
     refreshAll();
     setLastAction('Loaded ' + countText(current.total, 'vehicle', 'vehicles') + ' from ' + sourceLabel + '.');
     if (result.warnings.length > 0) {
@@ -554,8 +603,9 @@
   }
 
   async function loadSample() {
-    const [vehicles, revenue] = await Promise.all([fetchText('data/vehicles.txt'), fetchText('data/revenue.txt')]);
-    loadFromFiles(vehicles, revenue, 'the sample data');
+    const [vehicles, revenue, history] = await Promise.all([
+      fetchText('data/vehicles.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
+    loadFromFiles(vehicles, revenue, history, 'the sample data');
   }
 
   async function confirmDiscard() {
@@ -572,19 +622,23 @@
     });
   }
 
-  // File > Open data files...: the user picks vehicles.txt (and optionally revenue.txt).
+  // File > Open data files...: the user picks vehicles.txt and optionally revenue.txt
+  // and history.txt (recognised by their names). Files not picked keep their current content.
   async function openDataFiles(fileList) {
     const files = Array.from(fileList);
     if (files.length === 0) return;
     if (!(await confirmDiscard())) return;
     const revenueFile = files.find((file) => /revenue/i.test(file.name));
-    const vehicleFile = files.find((file) => file !== revenueFile);
+    const historyFile = files.find((file) => /history/i.test(file.name));
+    const vehicleFile = files.find((file) => file !== revenueFile && file !== historyFile);
     const vehiclesText = vehicleFile ? await readFileText(vehicleFile) : readDataFile('vehicles.txt');
     const revenueText = revenueFile ? await readFileText(revenueFile) : readDataFile('revenue.txt');
-    loadFromFiles(vehiclesText, revenueText, files.map((file) => file.name).join(' + '));
+    const historyText = historyFile ? await readFileText(historyFile) : readDataFile('history.txt');
+    loadFromFiles(vehiclesText, revenueText, historyText, files.map((file) => file.name).join(' + '));
     // Keep the opened files as the saved data of this browser.
     storageSet(STORAGE_VEHICLES, vehiclesText);
     storageSet(STORAGE_REVENUE, revenueText);
+    storageSet(STORAGE_HISTORY, historyText);
   }
 
   function downloadText(fileName, text) {
@@ -604,7 +658,8 @@
     if (!save()) return;
     downloadText('vehicles.txt', readDataFile('vehicles.txt'));
     setTimeout(() => downloadText('revenue.txt', readDataFile('revenue.txt')), 300);
-    setLastAction('Saved and downloaded vehicles.txt and revenue.txt.');
+    setTimeout(() => downloadText('history.txt', readDataFile('history.txt')), 600);
+    setLastAction('Saved and downloaded vehicles.txt, revenue.txt and history.txt.');
   }
 
   // ------------------------------------------------------------------ menus --
@@ -638,7 +693,7 @@
   }
 
   // ------------------------------------------------------------------- tabs --
-  const tabs = ['fleet', 'search', 'rentals'];
+  const tabs = ['fleet', 'search', 'rentals', 'history'];
 
   function selectTab(name) {
     for (const tab of tabs) {
@@ -649,6 +704,7 @@
       $('panel-' + tab).hidden = !active;
     }
     if (name === 'search') $('searchInput').focus();
+    if (name === 'history') $('historySearch').focus();
   }
 
   tabs.forEach((tab, index) => {
@@ -693,20 +749,25 @@
     $('rentBtn').addEventListener('click', () => rentVehicle());
     $('returnBtn').addEventListener('click', () => returnVehicle());
     $('searchInput').addEventListener('input', () => refreshAll());
+    $('historySearch').addEventListener('input', () => refreshAll());
+    $('historyReceiptBtn').addEventListener('click', () => showHistoryReceipt());
     $('saveBtn').addEventListener('click', () => save());
     $('selfTestBtn').addEventListener('click', () => runSelfTest());
     $('errorsBtn').addEventListener('click', async () => {
       if (!(await confirmDiscard())) return;
-      const [vehicles, revenue] = await Promise.all([fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt')]);
-      loadFromFiles(vehicles, revenue, 'vehicles_with_errors.txt (not saved until you choose Save)');
+      const [vehicles, revenue, history] = await Promise.all([
+        fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
+      loadFromFiles(vehicles, revenue, history, 'vehicles_with_errors.txt (not saved until you choose Save)');
     });
     $('resetBtn').addEventListener('click', async () => {
       const ok = await confirmAction('Restore sample data',
-        'Replace all vehicles and the revenue with the original sample data? Your saved data in this browser will be deleted.',
+        'Replace all vehicles, the revenue and the rental history with the original sample data? ' +
+        'Your saved data in this browser will be deleted.',
         'Restore sample data');
       if (!ok) return;
       storageRemove(STORAGE_VEHICLES);
       storageRemove(STORAGE_REVENUE);
+      storageRemove(STORAGE_HISTORY);
       await loadSample();
     });
     $('openBtn').addEventListener('click', () => $('fileInput').click());
@@ -748,8 +809,9 @@
 
       const savedVehicles = storageGet(STORAGE_VEHICLES);
       const savedRevenue = storageGet(STORAGE_REVENUE);
+      const savedHistory = storageGet(STORAGE_HISTORY);
       if (savedVehicles !== null) {
-        loadFromFiles(savedVehicles, savedRevenue || '', 'your saved data');
+        loadFromFiles(savedVehicles, savedRevenue || '', savedHistory || '', 'your saved data');
       } else {
         await loadSample();
       }

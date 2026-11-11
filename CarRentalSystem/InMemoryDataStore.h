@@ -17,10 +17,12 @@ class InMemoryDataStore final : public IDataStore
 {
 public:
     LoadResult load() override;
-    void save(const std::vector<Vehicle>& vehicles, const Money& revenue) override;
+    void save(const std::vector<Vehicle>& vehicles, const Money& revenue,
+              const std::vector<RentalRecord>& history) override;
     std::wstring describeLocation() const override;
 
 private:
     std::vector<Vehicle> m_vehicles;
     Money m_revenue;
+    std::vector<RentalRecord> m_history;
 };

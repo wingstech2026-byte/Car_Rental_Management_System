@@ -20,6 +20,7 @@
 #pragma once
 
 #include "Money.h"
+#include "RentalRecord.h"
 #include "Vehicle.h"
 
 #include <string>
@@ -30,6 +31,7 @@ struct LoadResult
 {
     std::vector<Vehicle> vehicles;       ///< Vehicles that passed validation.
     Money revenue;                       ///< Cumulative rental revenue.
+    std::vector<RentalRecord> history;   ///< Completed rentals (rental history).
     std::vector<std::wstring> warnings;  ///< One message per skipped/invalid line.
 };
 
@@ -45,9 +47,10 @@ public:
     /// @throws DataStoreException if the storage cannot be read at all.
     virtual LoadResult load() = 0;
 
-    /// Replaces the stored data with the given vehicles and revenue.
+    /// Replaces the stored data with the given vehicles, revenue and rental history.
     /// @throws DataStoreException if the data cannot be written.
-    virtual void save(const std::vector<Vehicle>& vehicles, const Money& revenue) = 0;
+    virtual void save(const std::vector<Vehicle>& vehicles, const Money& revenue,
+                      const std::vector<RentalRecord>& history) = 0;
 
     /// Human-readable description of where the data lives (e.g. a folder).
     virtual std::wstring describeLocation() const = 0;

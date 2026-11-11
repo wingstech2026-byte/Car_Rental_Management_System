@@ -326,3 +326,7 @@ body.app-page { height: 100dvh; overflow: hidden; background: var(--bg); }
 /* Tab strip: no stray scroll bar; the active tab is underlined instead of overlapping the border. */
 .tabs { overflow-x: auto; overflow-y: hidden; }
 .tabs button[aria-selected="true"] { margin-bottom: 0; border-color: transparent; background: transparent; box-shadow: inset 0 -3px 0 var(--primary); }
+
+/* Rental History tab */
+.history-summary { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+.receipt-meta { color: var(--muted); font-size: 13px; margin: -6px 0 0; }

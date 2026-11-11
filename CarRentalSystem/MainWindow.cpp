@@ -346,7 +346,8 @@ void MainWindow::createControls()
     // Tab control. WS_CLIPSIBLINGS stops it from painting over the pages.
     m_tab = Gui::createChild(m_hwnd, m_instance, WC_TABCONTROLW, L"",
                              WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_TABSTOP, 0, IDC_TAB);
-    const std::array<const wchar_t*, TabCount> titles{ L"Fleet", L"Search && Rent", L"Rentals && Returns" };
+    const std::array<const wchar_t*, TabCount> titles{ L"Fleet", L"Search && Rent", L"Rentals && Returns",
+                                                       L"Rental History" };
     for (int index = 0; index < TabCount; ++index)
     {
         std::wstring title = titles[static_cast<std::size_t>(index)];
@@ -367,6 +368,7 @@ void MainWindow::createControls()
     createFleetPage(page(FleetTab));
     createSearchPage(page(SearchTab));
     createRentalsPage(page(RentalsTab));
+    createHistoryPage(page(HistoryTab));
 
     m_statusBar = Gui::createChild(m_hwnd, m_instance, STATUSCLASSNAMEW, L"",
                                    WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP, 0, IDC_STATUS_BAR);
@@ -439,6 +441,37 @@ void MainWindow::createRentalsPage(HWND rentalsPage)
                                       WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, IDC_RETURN_BUTTON);
 }
 
+void MainWindow::createHistoryPage(HWND historyPage)
+{
+    m_historySummary = Gui::createChild(historyPage, m_instance, L"STATIC", L"",
+                                        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX | SS_CENTERIMAGE, 0,
+                                        IDC_HISTORY_SUMMARY);
+    m_historyLabel = Gui::createChild(historyPage, m_instance, L"STATIC", L"Searc&h history:",
+                                      WS_CHILD | WS_VISIBLE | SS_LEFT, 0, IDC_HISTORY_LABEL);
+    m_historySearch = Gui::createChild(historyPage, m_instance, L"EDIT", L"",
+                                       WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE,
+                                       IDC_HISTORY_SEARCH);
+    SendMessageW(m_historySearch, EM_SETCUEBANNER, TRUE,
+                 reinterpret_cast<LPARAM>(L"Plate, model, renter or telephone..."));
+    SendMessageW(m_historySearch, EM_LIMITTEXT, 80, 0);
+
+    std::vector<ReportListView::Column> columns;
+    columns.push_back(makeColumn(L"No.", 1, true));
+    columns.push_back(makeColumn(L"Returned", 3, false));
+    columns.push_back(makeColumn(L"Plate", 2, false));
+    columns.push_back(makeColumn(L"Model", 3, false));
+    columns.push_back(makeColumn(L"Renter", 3, false));
+    columns.push_back(makeColumn(L"Telephone", 3, false));
+    columns.push_back(makeColumn(L"Rate", 2, true));
+    columns.push_back(makeColumn(L"Days", 1, true));
+    columns.push_back(makeColumn(L"Charge", 2, true));
+    m_historyList.create(historyPage, IDC_HISTORY_LIST, m_instance, columns);
+
+    m_historyHint = Gui::createChild(historyPage, m_instance, L"STATIC",
+        L"Every return is archived here and saved to history.txt. Double-click a record (or press Enter) to show its receipt again.",
+        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS, 0, IDC_HISTORY_HINT);
+}
+
 void MainWindow::applyFonts()
 {
     // Create the new fonts first, apply them, and only then release the old ones
@@ -496,6 +529,7 @@ void MainWindow::layout()
     layoutFleetPage(pageWidth, pageHeight);
     layoutSearchPage(pageWidth, pageHeight);
     layoutRentalsPage(pageWidth, pageHeight);
+    layoutHistoryPage(pageWidth, pageHeight);
 }
 
 void MainWindow::layoutFleetPage(int width, int height)
@@ -564,6 +598,32 @@ void MainWindow::layoutRentalsPage(int width, int height)
     MoveWindow(m_rentalsHint, padding, buttonTop + (buttonHeight - labelHeight) / 2,
                std::max(0, width - 3 * padding - buttonWidth), labelHeight, TRUE);
     MoveWindow(m_returnButton, width - padding - buttonWidth, buttonTop, buttonWidth, buttonHeight, TRUE);
+}
+
+void MainWindow::layoutHistoryPage(int width, int height)
+{
+    const int padding = scale(10);
+    const int gap = scale(8);
+    const int summaryHeight = scale(24);
+    const int labelWidth = scale(100);
+    const int labelHeight = scale(20);
+    const int editHeight = scale(26);
+
+    MoveWindow(m_historySummary, padding, padding, std::max(0, width - 2 * padding), summaryHeight, TRUE);
+
+    const int searchTop = padding + summaryHeight + gap;
+    MoveWindow(m_historyLabel, padding, searchTop + (editHeight - labelHeight) / 2, labelWidth, labelHeight, TRUE);
+    const int editLeft = padding + labelWidth + gap;
+    MoveWindow(m_historySearch, editLeft, searchTop, std::max(0, std::min(scale(380), width - editLeft - padding)),
+               editHeight, TRUE);
+
+    const int listTop = searchTop + editHeight + gap;
+    const int hintTop = height - padding - labelHeight;
+    MoveWindow(m_historyList.handle(), padding, listTop, std::max(0, width - 2 * padding),
+               std::max(0, hintTop - gap - listTop), TRUE);
+    m_historyList.fitColumnsToWidth();
+
+    MoveWindow(m_historyHint, padding, hintTop, std::max(0, width - 2 * padding), labelHeight, TRUE);
 }
 
 void MainWindow::updateStatusBarParts()
@@ -643,6 +703,12 @@ void MainWindow::onCommand(int commandId, int notificationCode)
             updateButtons();
         }
         break;
+    case IDC_HISTORY_SEARCH:
+        if (notificationCode == EN_CHANGE)
+        {
+            refreshHistory();
+        }
+        break;
     default:
         break;
     }
@@ -664,6 +730,8 @@ LRESULT MainWindow::onNotify(NMHDR& header)
         return handleListNotification(m_searchList, header, &MainWindow::onRentVehicle);
     case IDC_RENTALS_LIST:
         return handleListNotification(m_rentalsList, header, &MainWindow::onReturnVehicle);
+    case IDC_HISTORY_LIST:
+        return handleListNotification(m_historyList, header, &MainWindow::onShowHistoryReceipt);
     default:
         return 0;
     }
@@ -700,7 +768,8 @@ LRESULT MainWindow::onControlColor(HDC deviceContext, HWND control) const
     {
         SetTextColor(deviceContext, RevenueTextColor);
     }
-    else if (control == m_fleetHint || control == m_rentalsHint || control == m_searchCount)
+    else if (control == m_fleetHint || control == m_rentalsHint || control == m_searchCount ||
+             control == m_historyHint)
     {
         SetTextColor(deviceContext, HintTextColor);
     }
@@ -723,6 +792,9 @@ void MainWindow::onDefaultAction()
         break;
     case RentalsTab:
         onReturnVehicle();
+        break;
+    case HistoryTab:
+        onShowHistoryReceipt();
         break;
     default:
         break;
@@ -802,9 +874,36 @@ void MainWindow::onReturnVehicle()
     if (dialog.showModal(m_hwnd) && dialog.receipt().has_value())
     {
         const Receipt& receipt = *dialog.receipt();
+        const RentalRecord& record = m_agency.getLastRecord(); // the return was archived
         refreshAll();
-        setLastAction(L"Returned " + plate + L" - charged " + receipt.getTotalCharge().toDisplayString() + L".");
-        Gui::showMessage(m_hwnd, receipt.toDisplayText(), L"Return Receipt", MB_ICONINFORMATION);
+        setLastAction(L"Returned " + plate + L" - charged " + receipt.getTotalCharge().toDisplayString() +
+                      L" (receipt no. " + std::to_wstring(record.getNumber()) + L").");
+        Gui::showMessage(m_hwnd,
+                         L"Receipt no. " + std::to_wstring(record.getNumber()) + L"   -   " + record.getReturnedOn() +
+                             L"\n\n" + receipt.toDisplayText(),
+                         L"Return Receipt", MB_ICONINFORMATION);
+    }
+}
+
+void MainWindow::onShowHistoryReceipt()
+{
+    const ReportListView::Row* row = m_historyList.selectedRow();
+    if (row == nullptr)
+    {
+        setLastAction(L"Select a record on the Rental History tab first.");
+        return;
+    }
+    const std::wstring number = row->key;
+    for (const RentalRecord& record : m_agency.getHistory())
+    {
+        if (std::to_wstring(record.getNumber()) == number)
+        {
+            Gui::showMessage(m_hwnd,
+                             L"Receipt no. " + number + L"   -   " + record.getReturnedOn() + L"\n\n" +
+                                 record.getReceipt().toDisplayText(),
+                             L"Receipt (copy)", MB_ICONINFORMATION);
+            return;
+        }
     }
 }
 
@@ -893,6 +992,7 @@ void MainWindow::refreshAll()
     refreshFleet();
     refreshSearch();
     refreshRentals();
+    refreshHistory();
     refreshStatusBar();
     updateButtons();
     updateTitle();
@@ -963,6 +1063,37 @@ void MainWindow::refreshRentals()
 
     const std::wstring revenueText = L"Cumulative Rental Revenue: " + m_agency.getRevenue().toDisplayString();
     SetWindowTextW(m_revenueLabel, revenueText.c_str());
+}
+
+void MainWindow::refreshHistory()
+{
+    const std::wstring query = TextUtils::trim(Gui::getWindowText(m_historySearch));
+    const std::vector<RentalRecord> records = m_agency.searchHistory(query);
+
+    std::vector<ReportListView::Row> rows;
+    for (const RentalRecord& record : records)
+    {
+        const Receipt& receipt = record.getReceipt();
+        ReportListView::Row row;
+        row.key = std::to_wstring(record.getNumber());
+        row.cells.push_back({ std::to_wstring(record.getNumber()), record.getNumber() });
+        row.cells.push_back({ record.getReturnedOn(), 0 });
+        row.cells.push_back({ receipt.getPlate(), 0 });
+        row.cells.push_back({ receipt.getModel(), 0 });
+        row.cells.push_back({ receipt.getRenterName(), 0 });
+        row.cells.push_back({ receipt.getPhone(), 0 });
+        row.cells.push_back({ receipt.getAgreedDailyRate().toDisplayString(), receipt.getAgreedDailyRate().cents() });
+        row.cells.push_back({ std::to_wstring(receipt.getDays()), receipt.getDays() });
+        row.cells.push_back({ receipt.getTotalCharge().toDisplayString(), receipt.getTotalCharge().cents() });
+        rows.push_back(std::move(row));
+    }
+    m_historyList.setRows(std::move(rows));
+
+    const std::wstring summary =
+        (query.empty() ? countText(records.size(), L"completed rental", L"completed rentals")
+                       : countText(records.size(), L"record matches", L"records match") + L" \"" + query + L"\"") +
+        L"   |   Total charged: " + RentalAgency::totalCharged(records).toDisplayString();
+    SetWindowTextW(m_historySummary, summary.c_str());
 }
 
 void MainWindow::refreshStatusBar()
@@ -1048,6 +1179,9 @@ void MainWindow::focusCurrentPage()
         break;
     case RentalsTab:
         SetFocus(m_rentalsList.handle());
+        break;
+    case HistoryTab:
+        SetFocus(m_historySearch);
         break;
     default:
         break;

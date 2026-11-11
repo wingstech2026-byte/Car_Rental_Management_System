@@ -174,6 +174,29 @@ std::vector<SelfTestResult> BusinessRuleSelfTest::run() const
         agency.findVehicle(L"NOPE-999");
     }));
 
+    // ---- Rental history -----------------------------------------------------------
+    results.push_back(expectSuccess(L"Return is archived in the rental history", [&]() -> std::wstring {
+        check(agency.getHistory().size() == 1, "History should contain exactly one record.");
+        const RentalRecord& record = agency.getLastRecord();
+        check(record.getNumber() == 1, "First receipt number should be 1.");
+        check(record.getReceipt().getPlate() == plate, "Wrong plate in history.");
+        check(record.getReceipt().getTotalCharge() == Money::parse(L"421.50"), "Wrong charge in history.");
+        check(RentalRecord::isValidTimestamp(record.getReturnedOn()), "Invalid return date.");
+        check(RentalAgency::totalCharged(agency.getHistory()) == agency.getRevenue(), "History total differs from revenue.");
+        return L"Receipt #1 on " + record.getReturnedOn();
+    }));
+    results.push_back(expectSuccess(L"Search history by renter, plate and model", [&]() -> std::wstring {
+        check(agency.searchHistory(L"ann").size() == 1, "Renter search failed.");
+        check(agency.searchHistory(L"tst-001").size() == 1, "Plate search failed.");
+        check(agency.searchHistory(L"hybrid").size() == 1, "Model search failed.");
+        check(agency.searchHistory(L"nobody").empty(), "Search should find nothing.");
+        return L"\"ann\" finds 1 record, \"nobody\" finds 0";
+    }));
+    results.push_back(expectThrow<ValidationException>(L"Reject history record with an invalid date", [] {
+        static_cast<void>(RentalRecord(1, L"2026-13-45 99:99",
+            Receipt(L"TST-001", L"Toyota", L"Ann Lee", L"0912345678", Money::fromCents(1000), 1, Money::fromCents(1000))));
+    }));
+
     // ---- Money ------------------------------------------------------------------
     results.push_back(expectSuccess(L"Money is exact: 0.10 + 0.20 == 0.30", []() -> std::wstring {
         check(Money::parse(L"0.10") + Money::parse(L"0.20") == Money::parse(L"0.30"), "0.10 + 0.20 != 0.30");
@@ -192,7 +215,9 @@ std::vector<SelfTestResult> BusinessRuleSelfTest::run() const
         check(warnings.empty(), "Unexpected warnings.");
         check(reloaded.getVehicleCount() == agency.getVehicleCount(), "Vehicle count differs.");
         check(reloaded.getRevenue() == agency.getRevenue(), "Revenue differs.");
-        return L"Reloaded " + std::to_wstring(reloaded.getVehicleCount()) + L" vehicles";
+        check(reloaded.getHistory().size() == agency.getHistory().size(), "History differs.");
+        return L"Reloaded " + std::to_wstring(reloaded.getVehicleCount()) + L" vehicles and " +
+               std::to_wstring(reloaded.getHistory().size()) + L" history record(s)";
     }));
 
     return results;

@@ -24,6 +24,7 @@ Car_Rental_Management_System/
     ├── Renter.h/.cpp                ← name + phone, validated
     ├── Rental.h/.cpp                ← Renter + agreed rate, calculateCharge()
     ├── Receipt.h/.cpp               ← data of a completed rental
+    ├── RentalRecord.h/.cpp          ← rental history entry: number + return date + Receipt
     ├── Vehicle.h/.cpp               ← plate, model, rate, status, optional<Rental>
     ├── RentalAgency.h/.cpp          ← owns the fleet + revenue, one method per use case
     ├── RentalExceptions.h/.cpp      ← exception hierarchy
@@ -50,6 +51,7 @@ Car_Rental_Management_System/
     └── data/
         ├── vehicles.txt             ← sample fleet (8 vehicles)
         ├── revenue.txt              ← sample revenue (3250.00)
+        ├── history.txt              ← sample rental history (4 rentals = 3250.00)
         └── vehicles_with_errors.txt ← for demonstrating load validation
 ```
 
@@ -72,7 +74,7 @@ The project is already configured with:
 - `comctl32.lib` and `uxtheme.lib`
 - the `.rc` file
 
-A **post-build step** copies `data\vehicles.txt` and `data\revenue.txt` next to the `.exe` (for example `x64\Debug\`). It copies them **only if they are not there yet**, so your saved data is never overwritten. To start again from the sample data, delete `vehicles.txt` and `revenue.txt` from the output folder and build again.
+A **post-build step** copies `data\vehicles.txt`, `data\revenue.txt` and `data\history.txt` next to the `.exe` (for example `x64\Debug\`). It copies them **only if they are not there yet**, so your saved data is never overwritten. To start again from the sample data, delete `vehicles.txt`, `revenue.txt` and `history.txt` from the output folder and build again.
 
 > If Visual Studio asks to "Retarget Projects" (for example because a different Windows SDK version is installed), click **OK**.
 
@@ -109,6 +111,7 @@ The Common Controls v6 manifest (Visual Styles) comes from a `#pragma comment(li
 | **Fleet** | See all vehicles (green = Available, orange = Rented). **Add Vehicle…** adds a vehicle. **Edit Selected…** (or a double-click, or Enter) edits an *available* vehicle's model and rate. Click a column header to sort. |
 | **Search & Rent** | Type part of a model (for example `cor`) and the list filters as you type. Only available vehicles are shown. **Rent Selected…** opens the rent dialog. |
 | **Rentals & Returns** | Shows the rented vehicles and the cumulative revenue. **Return Selected…** asks for the number of days, shows a live charge preview and then prints a receipt. |
+| **Rental History** | Every completed rental with its receipt number, return date and charge. Search by plate, model, renter or phone; double-click to show the receipt again. |
 
 - **Menu:** File > Save (Ctrl+S), File > Exit, Help > Run Business Rule Self-Test, Help > About.
 - **Keyboard:**
@@ -131,6 +134,22 @@ COR-202|Toyota Corolla|155.00|Rented|John Smith|+1 555-0100|140.00
 ```
 
 `revenue.txt`: one line with the cumulative revenue, for example `3250.00`.
+
+`history.txt` (UTF-8, one line per completed rental, written automatically on every return):
+
+```
+number|returnedOn|plate|model|renterName|phone|agreedRate|days|charge
+1|2026-10-03 09:30|ABC-123|Toyota Corolla|Emma Wilson|+1 555-0142|150.00|4|600.00
+```
+
+Every history line is validated with the same rules as manual entry. The receipt number must be unique, the date must be `YYYY-MM-DD HH:MM`, and the charge must equal agreed rate × days; otherwise the line is skipped with a warning. The four sample rentals add up to exactly the sample revenue of 3,250.00.
+
+### Rental history
+
+Every time a vehicle is returned, `RentalAgency::returnVehicle()` archives the rental as a `RentalRecord`: a sequential **receipt number**, the **return date and time**, and the full `Receipt`.
+- The **Rental History** tab lists every completed rental (No., Returned, Plate, Model, Renter, Telephone, Rate, Days, Charge). You can sort it by any column and search it by plate, model, renter or telephone, and it shows the number of rentals and the total charged.
+- Double-click a record (or press Enter) to show its receipt again.
+- The receipt shown after a return now includes its receipt number and date.
 
 Every line is validated with the **same rules as manual entry** when it is loaded. Bad lines are skipped and listed in one summary warning. Examples of bad lines: malformed lines, duplicate plates, invalid rates, and Rented vehicles without renter information. Saving writes a temporary file and then renames it, so a crash can never leave a half-written file.
 
@@ -286,6 +305,18 @@ classDiagram
         +toDisplayText() wstring
     }
 
+    class RentalRecord {
+        -int m_number
+        -wstring m_returnedOn
+        -Receipt m_receipt
+        +getNumber() int
+        +getReturnedOn() wstring
+        +getReceipt() Receipt
+        +matches(wstring query) bool
+        +currentTimestamp()$ wstring
+        +isValidTimestamp(wstring text)$ bool
+    }
+
     class RentalAgency {
         -map~wstring, Vehicle~ m_fleet
         -Money m_revenue
@@ -298,6 +329,10 @@ classDiagram
         +getRentedVehicles() vector~Vehicle~
         +getRevenue() Money
         +getAllVehicles() vector~Vehicle~
+        +getHistory() vector~RentalRecord~
+        +searchHistory(wstring query) vector~RentalRecord~
+        +getLastRecord() RentalRecord
+        +totalCharged(vector~RentalRecord~ records)$ Money
         +hasUnsavedChanges() bool
         +loadFrom(IDataStore store) vector~wstring~
         +saveTo(IDataStore store) void
@@ -306,30 +341,34 @@ classDiagram
     class IDataStore {
         <<interface>>
         +load()* LoadResult
-        +save(vector~Vehicle~ vehicles, Money revenue)* void
+        +save(vector~Vehicle~ vehicles, Money revenue, vector~RentalRecord~ history)* void
         +describeLocation()* wstring
     }
 
     class TextFileDataStore {
         -path m_directory
         +load() LoadResult
-        +save(vector~Vehicle~ vehicles, Money revenue) void
+        +save(vector~Vehicle~ vehicles, Money revenue, vector~RentalRecord~ history) void
         +describeLocation() wstring
         -parseVehicleLine(wstring line)$ Vehicle
         -formatVehicleLine(Vehicle vehicle)$ wstring
+        -parseHistoryLine(wstring line)$ RentalRecord
+        -formatHistoryLine(RentalRecord record)$ wstring
     }
 
     class InMemoryDataStore {
         -vector~Vehicle~ m_vehicles
         -Money m_revenue
+        -vector~RentalRecord~ m_history
         +load() LoadResult
-        +save(vector~Vehicle~ vehicles, Money revenue) void
+        +save(vector~Vehicle~ vehicles, Money revenue, vector~RentalRecord~ history) void
         +describeLocation() wstring
     }
 
     class LoadResult {
         +vector~Vehicle~ vehicles
         +Money revenue
+        +vector~RentalRecord~ history
         +vector~wstring~ warnings
     }
 
@@ -352,6 +391,8 @@ classDiagram
     RentalAgency *-- Money : revenue
     RentalAgency ..> IDataStore : load/save through
     RentalAgency ..> Receipt : returns
+    RentalAgency "1" *-- "0..*" RentalRecord : rental history
+    RentalRecord *-- Receipt
     Vehicle "1" *-- "0..1" Rental : active rental
     Vehicle --> VehicleStatus
     Vehicle *-- Money : daily rate

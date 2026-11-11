@@ -22,6 +22,7 @@
     <ClInclude Include="Renter.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="Rental.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="Receipt.h"><Filter>Business Logic</Filter></ClInclude>
+    <ClInclude Include="RentalRecord.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="Vehicle.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="RentalAgency.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="RentalExceptions.h"><Filter>Business Logic</Filter></ClInclude>
@@ -46,6 +47,7 @@
     <ClCompile Include="Renter.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="Rental.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="Receipt.cpp"><Filter>Business Logic</Filter></ClCompile>
+    <ClCompile Include="RentalRecord.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="Vehicle.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="RentalAgency.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="RentalExceptions.cpp"><Filter>Business Logic</Filter></ClCompile>
@@ -70,6 +72,7 @@
   <ItemGroup>
     <None Include="data\vehicles.txt"><Filter>Sample Data</Filter></None>
     <None Include="data\revenue.txt"><Filter>Sample Data</Filter></None>
+    <None Include="data\history.txt"><Filter>Sample Data</Filter></None>
     <None Include="data\vehicles_with_errors.txt"><Filter>Sample Data</Filter></None>
   </ItemGroup>
 </Project>

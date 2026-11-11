@@ -70,6 +70,7 @@
       <Message>Copying sample data files next to the executable (only if they are not there yet)</Message>
       <Command>if not exist "$(OutDir)vehicles.txt" copy /Y "$(ProjectDir)data\vehicles.txt" "$(OutDir)vehicles.txt" &gt;nul
 if not exist "$(OutDir)revenue.txt" copy /Y "$(ProjectDir)data\revenue.txt" "$(OutDir)revenue.txt" &gt;nul
+if not exist "$(OutDir)history.txt" copy /Y "$(ProjectDir)data\history.txt" "$(OutDir)history.txt" &gt;nul
 exit /b 0</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -102,6 +103,7 @@ exit /b 0</Command>
     <ClInclude Include="Renter.h" />
     <ClInclude Include="Rental.h" />
     <ClInclude Include="Receipt.h" />
+    <ClInclude Include="RentalRecord.h" />
     <ClInclude Include="Vehicle.h" />
     <ClInclude Include="RentalAgency.h" />
     <ClInclude Include="RentalExceptions.h" />
@@ -126,6 +128,7 @@ exit /b 0</Command>
     <ClCompile Include="Renter.cpp" />
     <ClCompile Include="Rental.cpp" />
     <ClCompile Include="Receipt.cpp" />
+    <ClCompile Include="RentalRecord.cpp" />
     <ClCompile Include="Vehicle.cpp" />
     <ClCompile Include="RentalAgency.cpp" />
     <ClCompile Include="RentalExceptions.cpp" />
@@ -150,6 +153,7 @@ exit /b 0</Command>
   <ItemGroup>
     <None Include="data\vehicles.txt" />
     <None Include="data\revenue.txt" />
+    <None Include="data\history.txt" />
     <None Include="data\vehicles_with_errors.txt" />
   </ItemGroup>
 

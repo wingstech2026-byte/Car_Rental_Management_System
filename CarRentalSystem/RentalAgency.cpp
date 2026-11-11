@@ -59,8 +59,56 @@ Receipt RentalAgency::returnVehicle(const std::wstring& plate, int days)
     Vehicle& vehicle = findMutableVehicle(plate);
     Receipt receipt = vehicle.returnVehicle(days); // Vehicle refuses if not rented / bad days
     m_revenue += receipt.getTotalCharge();
+    m_history.emplace_back(nextReceiptNumber(), RentalRecord::currentTimestamp(), receipt); // archive it
     m_modified = true;
     return receipt;
+}
+
+std::vector<RentalRecord> RentalAgency::getHistory() const
+{
+    return m_history;
+}
+
+std::vector<RentalRecord> RentalAgency::searchHistory(const std::wstring& query) const
+{
+    std::vector<RentalRecord> result;
+    for (const RentalRecord& record : m_history)
+    {
+        if (record.matches(query))
+        {
+            result.push_back(record);
+        }
+    }
+    return result;
+}
+
+const RentalRecord& RentalAgency::getLastRecord() const
+{
+    if (m_history.empty())
+    {
+        throw RentalException(L"The rental history is empty.");
+    }
+    return m_history.back();
+}
+
+Money RentalAgency::totalCharged(const std::vector<RentalRecord>& records)
+{
+    Money total;
+    for (const RentalRecord& record : records)
+    {
+        total += record.getReceipt().getTotalCharge();
+    }
+    return total;
+}
+
+int RentalAgency::nextReceiptNumber() const noexcept
+{
+    int highest = 0;
+    for (const RentalRecord& record : m_history)
+    {
+        highest = std::max(highest, record.getNumber());
+    }
+    return highest + 1;
 }
 
 std::vector<Vehicle> RentalAgency::getRentedVehicles() const
@@ -174,13 +222,14 @@ std::vector<std::wstring> RentalAgency::loadFrom(IDataStore& store)
 
     m_fleet = std::move(fleet);
     m_revenue = result.revenue;
+    m_history = std::move(result.history);
     m_modified = false;
     return result.warnings;
 }
 
 void RentalAgency::saveTo(IDataStore& store)
 {
-    store.save(getAllVehicles(), m_revenue); // virtual call
+    store.save(getAllVehicles(), m_revenue, m_history); // virtual call
     m_modified = false;
 }
 

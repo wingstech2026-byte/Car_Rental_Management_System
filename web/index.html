@@ -49,6 +49,7 @@
       <button role="tab" id="tab-fleet" aria-controls="panel-fleet" aria-selected="true">Fleet</button>
       <button role="tab" id="tab-search" aria-controls="panel-search" aria-selected="false" tabindex="-1">Search &amp; Rent</button>
       <button role="tab" id="tab-rentals" aria-controls="panel-rentals" aria-selected="false" tabindex="-1">Rentals &amp; Returns</button>
+      <button role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1">Rental History</button>
     </div>
 
     <!-- Fleet -->
@@ -114,6 +115,35 @@
       </div>
     </section>
 
+    <!-- Rental History -->
+    <section class="panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history" hidden>
+      <p class="history-summary" id="historySummary"></p>
+      <div class="search-row">
+        <label for="historySearch">Search history:</label>
+        <input id="historySearch" type="search" placeholder="Plate, model, renter or telephone..." maxlength="80" autocomplete="off">
+      </div>
+      <div class="table-wrap">
+        <table class="grid" id="historyTable">
+          <thead><tr>
+            <th data-key="number" class="num">No.</th>
+            <th data-key="returned">Returned</th>
+            <th data-key="plate">Plate</th>
+            <th data-key="model">Model</th>
+            <th data-key="renter">Renter</th>
+            <th data-key="phone">Telephone</th>
+            <th data-key="rate" class="num">Rate</th>
+            <th data-key="days" class="num">Days</th>
+            <th data-key="total" class="num">Charge</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel-actions split">
+        <span class="hint">Every return is archived here and saved to history.txt. Double-click a record to see its receipt again.</span>
+        <button class="btn" id="historyReceiptBtn" type="button" disabled>Show Receipt&hellip;</button>
+      </div>
+    </section>
+
     <!-- ================= Status bar ================= -->
     <footer class="statusbar" aria-live="polite">
       <span id="sbTotal"></span><span id="sbAvail"></span><span id="sbRented"></span><span id="sbRevenue"></span><span id="sbAction" class="sb-action"></span>
@@ -165,6 +195,7 @@
   <dialog id="receiptDialog" class="dlg" aria-labelledby="receiptTitle">
     <form method="dialog">
       <h3 id="receiptTitle">Rental Receipt</h3>
+      <p class="receipt-meta" id="receiptMeta"></p>
       <dl class="details receipt" id="receiptDetails"></dl>
       <div class="dlg-actions"><button type="button" class="btn" id="printReceiptBtn">Print</button><button type="submit" class="btn btn-primary">OK</button></div>
     </form>

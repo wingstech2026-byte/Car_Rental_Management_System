@@ -25,10 +25,12 @@ LoadResult TextFileDataStore::load()
     LoadResult result;
     loadVehicles(result);
     loadRevenue(result);
+    loadHistory(result);
     return result;
 }
 
-void TextFileDataStore::save(const std::vector<Vehicle>& vehicles, const Money& revenue)
+void TextFileDataStore::save(const std::vector<Vehicle>& vehicles, const Money& revenue,
+                             const std::vector<RentalRecord>& history)
 {
     std::error_code directoryError;
     std::filesystem::create_directories(m_directory, directoryError);
@@ -43,6 +45,13 @@ void TextFileDataStore::save(const std::vector<Vehicle>& vehicles, const Money& 
     std::wostringstream revenueText;
     revenueText << revenue << L"\r\n"; // uses Money's operator<< -> "3250.00"
     writeFileAtomically(m_directory / RevenueFileName, TextUtils::toUtf8(revenueText.str()));
+
+    std::wostringstream historyText;
+    for (const RentalRecord& record : history)
+    {
+        historyText << formatHistoryLine(record) << L"\r\n";
+    }
+    writeFileAtomically(m_directory / HistoryFileName, TextUtils::toUtf8(historyText.str()));
 }
 
 std::wstring TextFileDataStore::describeLocation() const
@@ -127,6 +136,105 @@ void TextFileDataStore::loadRevenue(LoadResult& result) const
         return;
     }
     result.revenue = *amount;
+}
+
+void TextFileDataStore::loadHistory(LoadResult& result) const
+{
+    const std::filesystem::path path = m_directory / HistoryFileName;
+    std::error_code existsError;
+    if (!std::filesystem::exists(path, existsError))
+    {
+        return; // missing file = empty history
+    }
+
+    const std::vector<std::string> lines = readLines(path);
+    std::set<int> seenNumbers;
+
+    for (std::size_t index = 0; index < lines.size(); ++index)
+    {
+        const std::wstring lineLabel =
+            std::wstring(HistoryFileName) + L" line " + std::to_wstring(index + 1) + L" skipped: ";
+
+        std::wstring line;
+        if (!TextUtils::tryFromUtf8(lines[index], line))
+        {
+            result.warnings.push_back(lineLabel + L"the line is not valid UTF-8 text.");
+            continue;
+        }
+        if (TextUtils::trim(line).empty())
+        {
+            continue;
+        }
+
+        try
+        {
+            RentalRecord record = parseHistoryLine(line);
+            if (!seenNumbers.insert(record.getNumber()).second)
+            {
+                result.warnings.push_back(lineLabel + L"duplicate receipt number " +
+                                          std::to_wstring(record.getNumber()) + L".");
+                continue;
+            }
+            result.history.push_back(std::move(record));
+        }
+        catch (const RentalException& problem)
+        {
+            result.warnings.push_back(lineLabel + problem.message());
+        }
+    }
+}
+
+RentalRecord TextFileDataStore::parseHistoryLine(const std::wstring& line)
+{
+    const std::vector<std::wstring> fields = TextUtils::split(line, Validation::FieldSeparator);
+    if (fields.size() != HistoryFieldCount)
+    {
+        throw ValidationException(InputField::None, L"expected " + std::to_wstring(HistoryFieldCount) +
+            L" fields separated by '|' but found " + std::to_wstring(fields.size()) + L".");
+    }
+
+    // Receipt number: positive whole number (same digit rules as rental days, but no upper limit of 3650).
+    const std::wstring numberText = TextUtils::trim(fields[0]);
+    if (numberText.empty() || numberText.size() > 9 ||
+        numberText.find_first_not_of(L"0123456789") != std::wstring::npos)
+    {
+        throw ValidationException(InputField::None, L"invalid receipt number \"" + numberText + L"\".");
+    }
+    const int number = std::stoi(numberText);
+
+    // Every field is checked with the same rules as manual entry.
+    const std::wstring plate = Validation::normalizePlate(fields[2]);
+    const std::wstring model = Validation::validateModel(fields[3]);
+    const Renter renter(fields[4], fields[5]);
+    const Money agreedRate = Validation::parseRate(fields[6], InputField::AgreedRate);
+    const int days = Validation::parseRentalDays(fields[7]);
+
+    const std::optional<Money> charge = Money::tryParse(fields[8]);
+    if (!charge)
+    {
+        throw ValidationException(InputField::None, L"invalid charge \"" + TextUtils::trim(fields[8]) + L"\".");
+    }
+    if (*charge != agreedRate * days)
+    {
+        throw ValidationException(InputField::None, L"the charge " + charge->toString() +
+            L" does not equal agreed rate x days (" + (agreedRate * days).toString() + L").");
+    }
+
+    Receipt receipt(plate, model, renter.getName(), renter.getPhone(), agreedRate, days, *charge);
+    return RentalRecord(number, fields[1], std::move(receipt)); // validates number and date
+}
+
+std::wstring TextFileDataStore::formatHistoryLine(const RentalRecord& record)
+{
+    const wchar_t separator = Validation::FieldSeparator;
+    const Receipt& receipt = record.getReceipt();
+    std::wostringstream line;
+    line << record.getNumber() << separator << record.getReturnedOn() << separator
+         << receipt.getPlate() << separator << receipt.getModel() << separator
+         << receipt.getRenterName() << separator << receipt.getPhone() << separator
+         << receipt.getAgreedDailyRate() << separator << receipt.getDays() << separator
+         << receipt.getTotalCharge();
+    return line.str();
 }
 
 Vehicle TextFileDataStore::parseVehicleLine(const std::wstring& line)

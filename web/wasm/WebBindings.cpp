@@ -24,6 +24,7 @@
 #include "Receipt.h"
 #include "RentalAgency.h"
 #include "RentalExceptions.h"
+#include "RentalRecord.h"
 #include "Renter.h"
 #include "TextFileDataStore.h"
 #include "TextUtils.h"
@@ -285,7 +286,10 @@ public:
         return guarded([&] {
             const int days = Validation::parseRentalDays(fromJs(daysText));
             const Receipt receipt = m_agency.returnVehicle(fromJs(plate), days);
-            return "\"receipt\":{\"plate\":" + jsonString(receipt.getPlate()) +
+            const RentalRecord& record = m_agency.getLastRecord(); // the return was archived
+            return "\"receipt\":{\"number\":" + std::to_string(record.getNumber()) +
+                   ",\"returnedOn\":" + jsonString(record.getReturnedOn()) +
+                   ",\"plate\":" + jsonString(receipt.getPlate()) +
                    ",\"model\":" + jsonString(receipt.getModel()) +
                    ",\"renter\":" + jsonString(receipt.getRenterName()) +
                    ",\"phone\":" + jsonString(receipt.getPhone()) +
@@ -294,6 +298,32 @@ public:
                    ",\"total\":" + jsonString(receipt.getTotalCharge().toDisplayString()) +
                    ",\"text\":" + jsonString(receipt.toDisplayText()) + "}";
         });
+    }
+
+    /// Rental History tab: completed rentals matching the query, plus their total.
+    std::string history(const std::string& query) const
+    {
+        const std::vector<RentalRecord> records = m_agency.searchHistory(fromJs(query));
+        std::string json = "{\"records\":[";
+        for (std::size_t index = 0; index < records.size(); ++index)
+        {
+            const RentalRecord& record = records[index];
+            const Receipt& receipt = record.getReceipt();
+            json += (index > 0 ? "," : "");
+            json += "{\"number\":" + std::to_string(record.getNumber()) +
+                    ",\"returnedOn\":" + jsonString(record.getReturnedOn()) +
+                    ",\"plate\":" + jsonString(receipt.getPlate()) +
+                    ",\"model\":" + jsonString(receipt.getModel()) +
+                    ",\"renter\":" + jsonString(receipt.getRenterName()) +
+                    ",\"phone\":" + jsonString(receipt.getPhone()) +
+                    ",\"rate\":" + jsonString(receipt.getAgreedDailyRate().toDisplayString()) +
+                    ",\"rateCents\":" + std::to_string(receipt.getAgreedDailyRate().cents()) +
+                    ",\"days\":" + std::to_string(receipt.getDays()) +
+                    ",\"total\":" + jsonString(receipt.getTotalCharge().toDisplayString()) +
+                    ",\"totalCents\":" + std::to_string(receipt.getTotalCharge().cents()) + "}";
+        }
+        return json + "],\"count\":" + std::to_string(records.size()) +
+               ",\"total\":" + jsonString(RentalAgency::totalCharged(records).toDisplayString()) + "}";
     }
 
     /// Help > Run Business Rule Self-Test.
@@ -333,5 +363,6 @@ EMSCRIPTEN_BINDINGS(car_rental)
         .function("checkReturnable", &WebApp::checkReturnable)
         .function("previewCharge", &WebApp::previewCharge)
         .function("returnVehicle", &WebApp::returnVehicle)
+        .function("history", &WebApp::history)
         .function("runSelfTest", &WebApp::runSelfTest);
 }
