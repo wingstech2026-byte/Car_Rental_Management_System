@@ -61,13 +61,13 @@ void Vehicle::edit(const std::wstring& model, const Money& dailyRate)
     m_dailyRate = dailyRate;
 }
 
-void Vehicle::rent(const Renter& renter, const Money& agreedDailyRate)
+void Vehicle::rent(const Renter& renter, const Money& agreedDailyRate, std::optional<DateTime> startDate)
 {
     if (!isAvailable())
     {
         throw VehicleNotAvailableException(m_plate, L"rented again");
     }
-    m_rental.emplace(renter, agreedDailyRate); // Rental's constructor validates the rate
+    m_rental.emplace(renter, agreedDailyRate, startDate); // Rental's constructor validates the rate
     m_status = VehicleStatus::Rented;
 }
 
@@ -80,8 +80,9 @@ Receipt Vehicle::returnVehicle(int days)
 
     // Calculate first: if days is invalid this throws and the vehicle stays rented.
     const Money charge = m_rental->calculateCharge(days);
+    const std::optional<DateTime>& start = m_rental->getStartDate();
     Receipt receipt(m_plate, m_model, m_rental->getRenter().getName(), m_rental->getRenter().getPhone(),
-                    m_rental->getAgreedDailyRate(), days, charge);
+                    m_rental->getAgreedDailyRate(), days, charge, start ? start->toString() : std::wstring());
 
     m_rental.reset(); // clear the rental details
     m_status = VehicleStatus::Available;

@@ -3,6 +3,8 @@
 // =============================================================================
 #include "BusinessRuleSelfTest.h"
 
+#include "BundleDataStore.h"
+#include "DateTime.h"
 #include "IDataStore.h"
 #include "InMemoryDataStore.h"
 #include "Money.h"
@@ -231,6 +233,90 @@ std::vector<SelfTestResult> BusinessRuleSelfTest::run() const
         check(agency.searchFleet(L"TST-001", StatusFilter::All).empty(), "Vehicle was not removed.");
         check(agency.getHistory().size() == 1, "History must be kept after removal.");
         return L"TST-001 removed, its receipt is still in the history";
+    }));
+
+    // ---- Rental start dates ------------------------------------------------------
+    results.push_back(expectSuccess(L"Rental days are calculated from the start date", []() -> std::wstring {
+        const DateTime start = DateTime::fromParts(2026, 1, 1, 8, 0);
+        check(start.rentalDaysUntil(DateTime::fromParts(2026, 1, 4, 8, 0)) == 3, "Exactly 72 hours must be 3 days.");
+        check(start.rentalDaysUntil(DateTime::fromParts(2026, 1, 4, 9, 0)) == 4, "A started day must count.");
+        check(start.rentalDaysUntil(start) == 1, "The minimum must be 1 day.");
+        check(DateTime::fromParts(2024, 2, 29, 23, 59).plusMinutes(1).toString() == L"2024-03-01 00:00", "Leap year error.");
+        return L"72 h = 3 days, 73 h = 4 days, minimum 1 day";
+    }));
+    results.push_back(expectThrow<ValidationException>(L"Reject an impossible date (2026-02-30)", [] {
+        static_cast<void>(DateTime::fromParts(2026, 2, 30, 10, 0));
+    }));
+    results.push_back(expectSuccess(L"Renting records the start date", []() -> std::wstring {
+        RentalAgency dates;
+        dates.addVehicle(L"DAT-001", L"Test Car", Money::parse(L"100"));
+        dates.rentVehicle(L"DAT-001", Renter(L"Ann Lee", L"0912345678"), Money::parse(L"100"));
+        const std::optional<DateTime>& start = dates.findVehicle(L"DAT-001").getRental()->getStartDate();
+        check(start.has_value(), "No start date was recorded.");
+        check(dates.suggestedRentalDays(L"DAT-001") == 1, "A rental started now must suggest 1 day.");
+        return L"started " + start->toString() + L", suggested 1 day";
+    }));
+
+    // ---- Users and roles ------------------------------------------------------------
+    results.push_back(expectThrow<AuthenticationException>(L"Reject a wrong password", [] {
+        RentalAgency users;
+        users.login(L"manager", L"wrong-password");
+    }));
+    results.push_back(expectThrow<AccessDeniedException>(L"A Clerk cannot add vehicles", [] {
+        RentalAgency users;
+        users.login(L"clerk", L"clerk123");
+        users.addVehicle(L"CLK-001", L"Test Car", Money::parse(L"100"));
+    }));
+    results.push_back(expectSuccess(L"A Clerk can rent and return; a Manager can do everything", []() -> std::wstring {
+        RentalAgency users;
+        users.addVehicle(L"CLK-002", L"Test Car", Money::parse(L"100")); // no login yet: allowed (setup)
+        users.login(L"clerk", L"clerk123");
+        users.rentVehicle(L"CLK-002", Renter(L"Ann Lee", L"0912345678"), Money::parse(L"100"));
+        users.returnVehicle(L"CLK-002", 2);
+        check(!users.isAllowed(Permission::ViewReports), "A Clerk must not see the reports.");
+        users.login(L"manager", L"manager123");
+        check(users.isAllowed(Permission::ManageUsers) && users.isAllowed(Permission::ManageFleet), "Manager rights missing.");
+        users.addUser(L"alice", L"secret99", Role::Clerk);
+        check(users.getUsers().size() == 3, "The new account was not added.");
+        return L"Clerk rented/returned; Manager added user \"alice\"";
+    }));
+    results.push_back(expectThrow<ValidationException>(L"Cannot delete your own account (or the last Manager)", [] {
+        RentalAgency users;
+        users.login(L"manager", L"manager123");
+        users.addUser(L"helper", L"secret99", Role::Manager);
+        users.login(L"helper", L"secret99");
+        users.removeUser(L"manager"); // allowed: another Manager remains
+        users.removeUser(L"helper");  // own account: must be refused
+    }));
+    results.push_back(expectThrow<ValidationException>(L"Reject a password shorter than 6 characters", [] {
+        RentalAgency users;
+        users.addUser(L"bob", L"123", Role::Clerk);
+    }));
+    results.push_back(expectSuccess(L"Passwords are stored as salted hashes", []() -> std::wstring {
+        RentalAgency users;
+        for (const User& user : users.getUsers())
+        {
+            check(user.getPasswordHash().size() == 64 && user.getSalt().size() == 16, "A password is not hashed.");
+            check(!user.checkPassword(user.getPasswordHash()), "The hash must not work as a password.");
+        }
+        check(User::hashPassword(L"0123456789abcdef", L"x") != User::hashPassword(L"fedcba9876543210", L"x"),
+              "Different salts must give different hashes.");
+        return L"SHA-256 x 1000 with a random 16-digit salt";
+    }));
+
+    // ---- Shared data bundle -------------------------------------------------------------
+    results.push_back(expectSuccess(L"Data bundle round trip (shared online format)", [&]() -> std::wstring {
+        BundleDataStore bundle;
+        IDataStore& store = bundle;
+        agency.saveTo(store);
+        RentalAgency reloaded;
+        const std::vector<std::wstring> warnings = reloaded.loadFrom(store);
+        check(warnings.empty(), "Unexpected warnings.");
+        check(reloaded.getVehicleCount() == agency.getVehicleCount() && reloaded.getRevenue() == agency.getRevenue() &&
+              reloaded.getHistory().size() == agency.getHistory().size() && reloaded.getUsers().size() == 2,
+              "Reloaded data differs.");
+        reloaded.login(L"manager", L"manager123"); // the password hashes survived the round trip
+        return L"vehicles, revenue, history and user accounts restored";
     }));
 
     // ---- Money ------------------------------------------------------------------

@@ -15,7 +15,10 @@ class Receipt
 {
 public:
     Receipt(std::wstring plate, std::wstring model, std::wstring renterName, std::wstring phone,
-            const Money& agreedDailyRate, int days, const Money& totalCharge);
+            const Money& agreedDailyRate, int days, const Money& totalCharge, std::wstring startedOn = L"");
+
+    /// When the rental started ("YYYY-MM-DD HH:MM"), or empty if unknown.
+    const std::wstring& getStartedOn() const noexcept;
 
     const std::wstring& getPlate() const noexcept;
     const std::wstring& getModel() const noexcept;
@@ -36,4 +39,5 @@ private:
     Money m_agreedDailyRate;
     int m_days;
     Money m_totalCharge;
+    std::wstring m_startedOn;
 };

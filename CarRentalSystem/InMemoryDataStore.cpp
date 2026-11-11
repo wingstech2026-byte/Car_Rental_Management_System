@@ -6,18 +6,13 @@
 LoadResult InMemoryDataStore::load()
 {
     LoadResult result;
-    result.vehicles = m_vehicles;
-    result.revenue = m_revenue;
-    result.history = m_history;
+    static_cast<AgencyData&>(result) = m_data; // copy the stored data into the result
     return result;
 }
 
-void InMemoryDataStore::save(const std::vector<Vehicle>& vehicles, const Money& revenue,
-                             const std::vector<RentalRecord>& history)
+void InMemoryDataStore::save(const AgencyData& data)
 {
-    m_vehicles = vehicles;
-    m_revenue = revenue;
-    m_history = history;
+    m_data = data;
 }
 
 std::wstring InMemoryDataStore::describeLocation() const

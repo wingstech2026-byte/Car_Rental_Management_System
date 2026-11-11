@@ -12,6 +12,9 @@
 #include "RentalStatistics.h"
 #include "Resource.h"
 #include "ReturnDialog.h"
+#include "ChangePasswordDialog.h"
+#include "LoginDialog.h"
+#include "UsersDialog.h"
 #include "TextUtils.h"
 
 #include <commctrl.h>
@@ -475,6 +478,7 @@ void MainWindow::createRentalsPage(HWND rentalsPage)
     columns.push_back(makeColumn(L"Model", 3, false));
     columns.push_back(makeColumn(L"Renter", 3, false));
     columns.push_back(makeColumn(L"Telephone", 3, false));
+    columns.push_back(makeColumn(L"Rented Since", 3, false));
     columns.push_back(makeColumn(L"Agreed Rate", 2, true));
     m_rentalsList.create(rentalsPage, IDC_RENTALS_LIST, m_instance, columns);
 
@@ -739,6 +743,18 @@ void MainWindow::onCommand(int commandId, int notificationCode)
     case ID_HELP_ABOUT:
         onAbout();
         break;
+    case ID_FILE_RELOAD:
+        onReload();
+        break;
+    case ID_FILE_LOGOUT:
+        onLogout();
+        break;
+    case ID_USERS_MANAGE:
+        onManageUsers();
+        break;
+    case ID_USERS_PASSWORD:
+        onChangePassword();
+        break;
     case ID_HELP_SELFTEST:
         onSelfTest();
         break;
@@ -924,6 +940,7 @@ void MainWindow::onDefaultAction()
 
 void MainWindow::onAddVehicle()
 {
+    m_agency.requirePermission(Permission::ManageFleet); // checked before any dialog opens
     AddEditVehicleDialog dialog(m_instance, m_agency);
     if (dialog.showModal(m_hwnd))
     {
@@ -937,6 +954,7 @@ void MainWindow::onAddVehicle()
 
 void MainWindow::onEditVehicle()
 {
+    m_agency.requirePermission(Permission::ManageFleet); // checked before any dialog opens
     const ReportListView::Row* row = m_fleetList.selectedRow();
     if (row == nullptr)
     {
@@ -958,6 +976,7 @@ void MainWindow::onEditVehicle()
 
 void MainWindow::onRemoveVehicle()
 {
+    m_agency.requirePermission(Permission::ManageFleet); // checked before any dialog opens
     const ReportListView::Row* row = m_fleetList.selectedRow();
     if (row == nullptr)
     {
@@ -984,6 +1003,7 @@ void MainWindow::onRemoveVehicle()
 
 void MainWindow::onRentVehicle()
 {
+    m_agency.requirePermission(Permission::RentAndReturn); // checked before any dialog opens
     const ReportListView::Row* row = m_searchList.selectedRow();
     if (row == nullptr)
     {
@@ -1003,6 +1023,7 @@ void MainWindow::onRentVehicle()
 
 void MainWindow::onReturnVehicle()
 {
+    m_agency.requirePermission(Permission::RentAndReturn); // checked before any dialog opens
     const ReportListView::Row* row = m_rentalsList.selectedRow();
     if (row == nullptr)
     {
@@ -1012,7 +1033,7 @@ void MainWindow::onReturnVehicle()
     const std::wstring plate = row->key;
 
     const Vehicle& vehicle = m_agency.findRentedVehicle(plate); // throws if not rented
-    ReturnDialog dialog(m_instance, m_agency, vehicle);
+    ReturnDialog dialog(m_instance, m_agency, vehicle, m_agency.suggestedRentalDays(plate));
     if (dialog.showModal(m_hwnd) && dialog.receipt().has_value())
     {
         const Receipt& receipt = *dialog.receipt();
@@ -1064,6 +1085,74 @@ bool MainWindow::onSave()
     setLastAction(L"Saved " + countText(m_agency.getVehicleCount(), L"vehicle", L"vehicles") +
                   L" and revenue " + m_agency.getRevenue().toDisplayString() + L".");
     return true;
+}
+
+void MainWindow::onReload()
+{
+    if (m_agency.hasUnsavedChanges() &&
+        MessageBoxW(m_hwnd, L"Reloading discards your unsaved changes.\n\nReload anyway?", L"Reload",
+                    MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES)
+    {
+        return;
+    }
+    const std::vector<std::wstring> warnings = m_agency.loadFrom(m_store); // polymorphic: files or online database
+    refreshAll();
+    setLastAction(L"Reloaded " + countText(m_agency.getVehicleCount(), L"vehicle", L"vehicles") + L" from " +
+                  m_store.describeLocation() + L".");
+    showLoadWarnings(warnings);
+    if (m_agency.getCurrentUser() == nullptr && !showLoginDialog())
+    {
+        DestroyWindow(m_hwnd); // the account was deleted by somebody else and nobody logged in
+    }
+}
+
+void MainWindow::onLogout()
+{
+    if (!confirmSaveChanges())
+    {
+        return;
+    }
+    m_agency.logout();
+    refreshAll();
+    if (!showLoginDialog())
+    {
+        DestroyWindow(m_hwnd);
+        return;
+    }
+    const User* user = m_agency.getCurrentUser();
+    setLastAction(L"Logged in as " + (user != nullptr ? user->getUsername() : std::wstring()) + L".");
+}
+
+bool MainWindow::showLoginDialog()
+{
+    LoginDialog dialog(m_instance,
+                       [this](const std::wstring& username, const std::wstring& password) { m_agency.login(username, password); },
+                       L"Log in to continue working with the data in " + m_store.describeLocation() + L".");
+    const bool loggedIn = dialog.showModal(m_hwnd);
+    refreshAll();
+    return loggedIn;
+}
+
+void MainWindow::onManageUsers()
+{
+    m_agency.requirePermission(Permission::ManageUsers); // Clerks get "Access denied"
+    UsersDialog dialog(m_instance, m_agency);
+    dialog.showModal(m_hwnd);
+    if (dialog.changed())
+    {
+        refreshAll();
+        setLastAction(L"User accounts changed. Save (Ctrl+S) to keep the changes.");
+    }
+}
+
+void MainWindow::onChangePassword()
+{
+    ChangePasswordDialog dialog(m_instance, m_agency);
+    if (dialog.showModal(m_hwnd))
+    {
+        refreshAll();
+        setLastAction(L"Your password was changed. Save (Ctrl+S) to keep the change.");
+    }
 }
 
 bool MainWindow::confirmSaveChanges()
@@ -1205,6 +1294,7 @@ void MainWindow::refreshRentals()
         row.cells.push_back({ vehicle.getModel(), 0 });
         row.cells.push_back({ rental->getRenter().getName(), 0 });
         row.cells.push_back({ rental->getRenter().getPhone(), 0 });
+        row.cells.push_back({ rental->getStartDate() ? rental->getStartDate()->toString() : std::wstring(L"-"), 0 });
         row.cells.push_back({ rental->getAgreedDailyRate().toDisplayString(), rental->getAgreedDailyRate().cents() });
         rows.push_back(std::move(row));
     }
@@ -1247,6 +1337,13 @@ void MainWindow::refreshHistory()
 
 void MainWindow::refreshReports()
 {
+    if (!m_agency.isAllowed(Permission::ViewReports))
+    {
+        SetWindowTextW(m_reportsSummary, L"Reports and statistics are available to Managers only.");
+        m_modelList.setRows({});
+        m_topVehicleList.setRows({});
+        return;
+    }
     const RentalStatistics stats(m_agency); // all figures are calculated by the business layer
 
     const std::wstring summary =
@@ -1305,16 +1402,30 @@ void MainWindow::refreshStatusBar()
 
 void MainWindow::updateButtons()
 {
+    // Buttons follow both the selection and the role of the logged-in user.
+    const bool canManageFleet = m_agency.isAllowed(Permission::ManageFleet);
+    const bool canRent = m_agency.isAllowed(Permission::RentAndReturn);
     const ReportListView::Row* fleetRow = m_fleetList.selectedRow();
-    enableControl(m_editButton, fleetRow != nullptr && fleetRow->actionable, m_fleetList.handle());
-    enableControl(m_removeButton, fleetRow != nullptr && fleetRow->actionable, m_fleetList.handle());
-    enableControl(m_rentButton, m_searchList.selectedRow() != nullptr, m_searchList.handle());
-    enableControl(m_returnButton, m_rentalsList.selectedRow() != nullptr, m_rentalsList.handle());
+    enableControl(m_addButton, canManageFleet, m_fleetList.handle());
+    enableControl(m_editButton, canManageFleet && fleetRow != nullptr && fleetRow->actionable, m_fleetList.handle());
+    enableControl(m_removeButton, canManageFleet && fleetRow != nullptr && fleetRow->actionable, m_fleetList.handle());
+    enableControl(m_rentButton, canRent && m_searchList.selectedRow() != nullptr, m_searchList.handle());
+    enableControl(m_returnButton, canRent && m_rentalsList.selectedRow() != nullptr, m_rentalsList.handle());
+
+    if (const HMENU menu = GetMenu(m_hwnd))
+    {
+        const UINT usersState = m_agency.isAllowed(Permission::ManageUsers) ? MF_ENABLED : MF_GRAYED;
+        EnableMenuItem(menu, ID_USERS_MANAGE, MF_BYCOMMAND | usersState);
+    }
 }
 
 void MainWindow::updateTitle()
 {
     std::wstring title = ApplicationTitle;
+    if (const User* user = m_agency.getCurrentUser())
+    {
+        title += L"  -  " + user->getUsername() + L" (" + toString(user->getRole()) + L")";
+    }
     if (m_agency.hasUnsavedChanges())
     {
         title += L" *";

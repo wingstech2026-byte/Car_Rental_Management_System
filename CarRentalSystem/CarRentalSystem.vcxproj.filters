@@ -30,9 +30,16 @@
     <ClInclude Include="Validation.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="TextUtils.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="BusinessRuleSelfTest.h"><Filter>Business Logic</Filter></ClInclude>
+    <ClInclude Include="DateTime.h"><Filter>Business Logic</Filter></ClInclude>
+    <ClInclude Include="Sha256.h"><Filter>Business Logic</Filter></ClInclude>
+    <ClInclude Include="User.h"><Filter>Business Logic</Filter></ClInclude>
+    <ClInclude Include="UserDirectory.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="IDataStore.h"><Filter>Persistence</Filter></ClInclude>
     <ClInclude Include="TextFileDataStore.h"><Filter>Persistence</Filter></ClInclude>
     <ClInclude Include="InMemoryDataStore.h"><Filter>Persistence</Filter></ClInclude>
+    <ClInclude Include="DataFileFormat.h"><Filter>Persistence</Filter></ClInclude>
+    <ClInclude Include="BundleDataStore.h"><Filter>Persistence</Filter></ClInclude>
+    <ClInclude Include="RemoteDataStore.h"><Filter>Persistence</Filter></ClInclude>
     <ClInclude Include="Win32Include.h"><Filter>GUI</Filter></ClInclude>
     <ClInclude Include="GuiUtils.h"><Filter>GUI</Filter></ClInclude>
     <ClInclude Include="ReportListView.h"><Filter>GUI</Filter></ClInclude>
@@ -40,6 +47,9 @@
     <ClInclude Include="AddEditVehicleDialog.h"><Filter>GUI</Filter></ClInclude>
     <ClInclude Include="RentDialog.h"><Filter>GUI</Filter></ClInclude>
     <ClInclude Include="ReturnDialog.h"><Filter>GUI</Filter></ClInclude>
+    <ClInclude Include="LoginDialog.h"><Filter>GUI</Filter></ClInclude>
+    <ClInclude Include="UsersDialog.h"><Filter>GUI</Filter></ClInclude>
+    <ClInclude Include="ChangePasswordDialog.h"><Filter>GUI</Filter></ClInclude>
     <ClInclude Include="MainWindow.h"><Filter>GUI</Filter></ClInclude>
     <ClInclude Include="Resource.h"><Filter>Resources</Filter></ClInclude>
   </ItemGroup>
@@ -56,15 +66,25 @@
     <ClCompile Include="Validation.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="TextUtils.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="BusinessRuleSelfTest.cpp"><Filter>Business Logic</Filter></ClCompile>
+    <ClCompile Include="DateTime.cpp"><Filter>Business Logic</Filter></ClCompile>
+    <ClCompile Include="Sha256.cpp"><Filter>Business Logic</Filter></ClCompile>
+    <ClCompile Include="User.cpp"><Filter>Business Logic</Filter></ClCompile>
+    <ClCompile Include="UserDirectory.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="IDataStore.cpp"><Filter>Persistence</Filter></ClCompile>
     <ClCompile Include="TextFileDataStore.cpp"><Filter>Persistence</Filter></ClCompile>
     <ClCompile Include="InMemoryDataStore.cpp"><Filter>Persistence</Filter></ClCompile>
+    <ClCompile Include="DataFileFormat.cpp"><Filter>Persistence</Filter></ClCompile>
+    <ClCompile Include="BundleDataStore.cpp"><Filter>Persistence</Filter></ClCompile>
+    <ClCompile Include="RemoteDataStore.cpp"><Filter>Persistence</Filter></ClCompile>
     <ClCompile Include="GuiUtils.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="ReportListView.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="ModalDialog.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="AddEditVehicleDialog.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="RentDialog.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="ReturnDialog.cpp"><Filter>GUI</Filter></ClCompile>
+    <ClCompile Include="LoginDialog.cpp"><Filter>GUI</Filter></ClCompile>
+    <ClCompile Include="UsersDialog.cpp"><Filter>GUI</Filter></ClCompile>
+    <ClCompile Include="ChangePasswordDialog.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="MainWindow.cpp"><Filter>GUI</Filter></ClCompile>
     <ClCompile Include="main.cpp"><Filter>GUI</Filter></ClCompile>
   </ItemGroup>

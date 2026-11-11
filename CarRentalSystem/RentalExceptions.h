@@ -37,7 +37,9 @@ enum class InputField
     RenterName,
     Phone,
     AgreedRate,
-    RentalDays
+    RentalDays,
+    Username,
+    Password
 };
 
 /// Base class of all exceptions thrown by the rental business logic.
@@ -106,4 +108,26 @@ class DataStoreException : public RentalException
 {
 public:
     explicit DataStoreException(const std::wstring& text);
+};
+
+/// Thrown when the shared online data was changed by another user since it was
+/// loaded (optimistic concurrency): the user must reload and repeat the change.
+class DataConflictException : public DataStoreException
+{
+public:
+    DataConflictException();
+};
+
+/// Thrown when a login fails (unknown user name or wrong password).
+class AuthenticationException : public RentalException
+{
+public:
+    AuthenticationException();
+};
+
+/// Thrown when the logged-in user's role does not allow an operation.
+class AccessDeniedException : public RentalException
+{
+public:
+    AccessDeniedException(const std::wstring& roleName, const std::wstring& action);
 };

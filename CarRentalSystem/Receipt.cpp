@@ -6,16 +6,19 @@
 #include <utility>
 
 Receipt::Receipt(std::wstring plate, std::wstring model, std::wstring renterName, std::wstring phone,
-                 const Money& agreedDailyRate, int days, const Money& totalCharge)
+                 const Money& agreedDailyRate, int days, const Money& totalCharge, std::wstring startedOn)
     : m_plate(std::move(plate)),
       m_model(std::move(model)),
       m_renterName(std::move(renterName)),
       m_phone(std::move(phone)),
       m_agreedDailyRate(agreedDailyRate),
       m_days(days),
-      m_totalCharge(totalCharge)
+      m_totalCharge(totalCharge),
+      m_startedOn(std::move(startedOn))
 {
 }
+
+const std::wstring& Receipt::getStartedOn() const noexcept { return m_startedOn; }
 
 const std::wstring& Receipt::getPlate() const noexcept { return m_plate; }
 const std::wstring& Receipt::getModel() const noexcept { return m_model; }
@@ -34,6 +37,10 @@ std::wstring Receipt::toDisplayText() const
     text += L"Model:  " + m_model + L"\n";
     text += L"Renter:  " + m_renterName + L"\n";
     text += L"Telephone:  " + m_phone + L"\n";
+    if (!m_startedOn.empty())
+    {
+        text += L"Rented since:  " + m_startedOn + L"\n";
+    }
     text += L"Agreed daily rate:  " + m_agreedDailyRate.toDisplayString() + L"\n";
     text += L"Rental days:  " + std::to_wstring(m_days) + L"\n\n";
     text += L"TOTAL CHARGE:  " + m_agreedDailyRate.toDisplayString() + L" x " + std::to_wstring(m_days) +

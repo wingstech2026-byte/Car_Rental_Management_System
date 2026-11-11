@@ -17,8 +17,16 @@ BEGIN
     POPUP "&File"
     BEGIN
         MENUITEM "&Save\tCtrl+S",                       ID_FILE_SAVE
+        MENUITEM "&Reload\tCtrl+R",                     ID_FILE_RELOAD
+        MENUITEM SEPARATOR
+        MENUITEM "&Log Out / Switch User...",           ID_FILE_LOGOUT
         MENUITEM SEPARATOR
         MENUITEM "E&xit\tAlt+F4",                       ID_FILE_EXIT
+    END
+    POPUP "&Users"
+    BEGIN
+        MENUITEM "&Manage Users...",                    ID_USERS_MANAGE
+        MENUITEM "&Change My Password...",              ID_USERS_PASSWORD
     END
     POPUP "&Help"
     BEGIN
@@ -35,6 +43,7 @@ IDR_ACCELERATORS ACCELERATORS
 BEGIN
     "S",        ID_FILE_SAVE,   VIRTKEY, CONTROL, NOINVERT
     "F",        ID_FIND,        VIRTKEY, CONTROL, NOINVERT
+    "R",        ID_FILE_RELOAD, VIRTKEY, CONTROL, NOINVERT
     VK_TAB,     ID_NEXT_TAB,    VIRTKEY, CONTROL, NOINVERT
     VK_TAB,     ID_PREV_TAB,    VIRTKEY, CONTROL, SHIFT, NOINVERT
 END
@@ -91,12 +100,12 @@ END
 // -----------------------------------------------------------------------------
 // Return Vehicle dialog
 // -----------------------------------------------------------------------------
-IDD_RETURN DIALOGEX 0, 0, 280, 196
+IDD_RETURN DIALOGEX 0, 0, 280, 212
 STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Return Vehicle"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    GROUPBOX        "Rental details", IDC_STATIC, 7, 6, 266, 92
+    GROUPBOX        "Rental details", IDC_STATIC, 7, 6, 266, 107
     LTEXT           "License plate:", IDC_STATIC, 16, 20, 80, 8
     EDITTEXT        IDC_RET_PLATE, 100, 18, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
     LTEXT           "Model:", IDC_STATIC, 16, 35, 80, 8
@@ -107,17 +116,79 @@ BEGIN
     EDITTEXT        IDC_RET_PHONE, 100, 63, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
     LTEXT           "Agreed daily rate:", IDC_STATIC, 16, 80, 80, 8
     EDITTEXT        IDC_RET_RATE, 100, 78, 70, 13, ES_AUTOHSCROLL | ES_READONLY | ES_RIGHT | NOT WS_TABSTOP
+    LTEXT           "Rented since:", IDC_STATIC, 16, 95, 80, 8
+    EDITTEXT        IDC_RET_START, 100, 93, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
 
-    LTEXT           "Rental &days:", IDC_STATIC, 16, 112, 80, 8
-    EDITTEXT        IDC_DAYS_EDIT, 100, 110, 50, 14, ES_AUTOHSCROLL | ES_NUMBER | ES_RIGHT
+    LTEXT           "Rental &days:", IDC_STATIC, 16, 127, 80, 8
+    EDITTEXT        IDC_DAYS_EDIT, 100, 125, 50, 14, ES_AUTOHSCROLL | ES_NUMBER | ES_RIGHT
     CONTROL         "", IDC_DAYS_SPIN, "msctls_updown32",
                     UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,
-                    150, 110, 10, 14
-    LTEXT           "whole days, 1 to 3650", IDC_STATIC, 166, 112, 100, 8
-    LTEXT           "", IDC_CHARGE_PREVIEW, 16, 134, 252, 12, SS_NOPREFIX
+                    150, 125, 10, 14
+    LTEXT           "calculated from the start date; you can change it", IDC_STATIC, 166, 123, 104, 18
+    LTEXT           "", IDC_CHARGE_PREVIEW, 16, 150, 252, 12, SS_NOPREFIX
 
-    DEFPUSHBUTTON   "OK", IDOK, 166, 174, 50, 14
-    PUSHBUTTON      "Cancel", IDCANCEL, 222, 174, 50, 14
+    DEFPUSHBUTTON   "OK", IDOK, 166, 190, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 222, 190, 50, 14
+END
+
+// -----------------------------------------------------------------------------
+// Log In dialog
+// -----------------------------------------------------------------------------
+IDD_LOGIN DIALOGEX 0, 0, 250, 124
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Log In - Car Rental Management System"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "&User name:", IDC_STATIC, 12, 14, 60, 8
+    EDITTEXT        IDC_LOGIN_USERNAME, 76, 12, 162, 14, ES_AUTOHSCROLL | ES_LOWERCASE
+    LTEXT           "&Password:", IDC_STATIC, 12, 34, 60, 8
+    EDITTEXT        IDC_LOGIN_PASSWORD, 76, 32, 162, 14, ES_AUTOHSCROLL | ES_PASSWORD
+    LTEXT           "", IDC_LOGIN_INFO, 12, 54, 226, 40, SS_NOPREFIX
+    DEFPUSHBUTTON   "Log In", IDOK, 134, 102, 50, 14
+    PUSHBUTTON      "Exit", IDCANCEL, 188, 102, 50, 14
+END
+
+// -----------------------------------------------------------------------------
+// Manage Users dialog (Managers only)
+// -----------------------------------------------------------------------------
+IDD_USERS DIALOGEX 0, 0, 300, 196
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Manage Users"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "&Accounts:", IDC_STATIC, 7, 7, 120, 8
+    LISTBOX         IDC_USERS_LIST, 7, 18, 130, 148, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "&Delete Selected", IDC_USERS_REMOVE, 7, 172, 130, 14
+
+    GROUPBOX        "New account / new password", IDC_STATIC, 145, 7, 148, 132
+    LTEXT           "User &name:", IDC_STATIC, 153, 22, 60, 8
+    EDITTEXT        IDC_USERS_NAME, 153, 32, 132, 14, ES_AUTOHSCROLL | ES_LOWERCASE
+    LTEXT           "&Password (at least 6 characters):", IDC_STATIC, 153, 51, 132, 8
+    EDITTEXT        IDC_USERS_PASSWORD, 153, 61, 132, 14, ES_AUTOHSCROLL | ES_PASSWORD
+    LTEXT           "&Role:", IDC_STATIC, 153, 80, 60, 8
+    COMBOBOX        IDC_USERS_ROLE, 153, 90, 132, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Add &Account", IDC_USERS_ADD, 153, 114, 64, 14
+    PUSHBUTTON      "Reset Pass&word", IDC_USERS_RESET, 221, 114, 64, 14
+
+    DEFPUSHBUTTON   "Close", IDOK, 243, 172, 50, 14
+END
+
+// -----------------------------------------------------------------------------
+// Change Password dialog
+// -----------------------------------------------------------------------------
+IDD_CHANGE_PASSWORD DIALOGEX 0, 0, 250, 100
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Change My Password"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "&Current password:", IDC_STATIC, 12, 14, 80, 8
+    EDITTEXT        IDC_PW_CURRENT, 96, 12, 142, 14, ES_AUTOHSCROLL | ES_PASSWORD
+    LTEXT           "&New password:", IDC_STATIC, 12, 34, 80, 8
+    EDITTEXT        IDC_PW_NEW, 96, 32, 142, 14, ES_AUTOHSCROLL | ES_PASSWORD
+    LTEXT           "C&onfirm new password:", IDC_STATIC, 12, 54, 80, 8
+    EDITTEXT        IDC_PW_CONFIRM, 96, 52, 142, 14, ES_AUTOHSCROLL | ES_PASSWORD
+    DEFPUSHBUTTON   "OK", IDOK, 134, 78, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 188, 78, 50, 14
 END
 
 // -----------------------------------------------------------------------------

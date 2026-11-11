@@ -210,4 +210,39 @@ namespace Validation
         requireValidDays(days);
         return days;
     }
+
+    std::wstring normalizeUsername(const std::wstring& rawUsername)
+    {
+        const std::wstring username = TextUtils::toLower(TextUtils::trim(rawUsername));
+        if (username.size() < MinUsernameLength || username.size() > MaxUsernameLength)
+        {
+            throw ValidationException(InputField::Username, L"User name must be " + std::to_wstring(MinUsernameLength) +
+                L" to " + std::to_wstring(MaxUsernameLength) + L" characters long.");
+        }
+        for (const wchar_t character : username)
+        {
+            const bool allowed = (character >= L'a' && character <= L'z') || TextUtils::isAsciiDigit(character) ||
+                                 character == L'.' || character == L'_' || character == L'-';
+            if (!allowed)
+            {
+                throw ValidationException(InputField::Username,
+                    L"User name may contain only letters a-z, digits, '.', '_' and '-' (no spaces).");
+            }
+        }
+        return username;
+    }
+
+    void validatePassword(const std::wstring& password)
+    {
+        if (password.size() < MinPasswordLength || password.size() > MaxPasswordLength)
+        {
+            throw ValidationException(InputField::Password, L"Password must be " + std::to_wstring(MinPasswordLength) +
+                L" to " + std::to_wstring(MaxPasswordLength) + L" characters long.");
+        }
+        if (password.find(FieldSeparator) != std::wstring::npos || containsControlCharacter(password))
+        {
+            throw ValidationException(InputField::Password,
+                L"Password must not contain the '|' character or control characters.");
+        }
+    }
 }

@@ -64,7 +64,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>comctl32.lib;uxtheme.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Message>Copying sample data files next to the executable (only if they are not there yet)</Message>
@@ -111,9 +111,16 @@ exit /b 0</Command>
     <ClInclude Include="Validation.h" />
     <ClInclude Include="TextUtils.h" />
     <ClInclude Include="BusinessRuleSelfTest.h" />
+    <ClInclude Include="DateTime.h" />
+    <ClInclude Include="Sha256.h" />
+    <ClInclude Include="User.h" />
+    <ClInclude Include="UserDirectory.h" />
     <ClInclude Include="IDataStore.h" />
     <ClInclude Include="TextFileDataStore.h" />
     <ClInclude Include="InMemoryDataStore.h" />
+    <ClInclude Include="DataFileFormat.h" />
+    <ClInclude Include="BundleDataStore.h" />
+    <ClInclude Include="RemoteDataStore.h" />
     <ClInclude Include="Win32Include.h" />
     <ClInclude Include="GuiUtils.h" />
     <ClInclude Include="ReportListView.h" />
@@ -121,6 +128,9 @@ exit /b 0</Command>
     <ClInclude Include="AddEditVehicleDialog.h" />
     <ClInclude Include="RentDialog.h" />
     <ClInclude Include="ReturnDialog.h" />
+    <ClInclude Include="LoginDialog.h" />
+    <ClInclude Include="UsersDialog.h" />
+    <ClInclude Include="ChangePasswordDialog.h" />
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="Resource.h" />
   </ItemGroup>
@@ -137,15 +147,25 @@ exit /b 0</Command>
     <ClCompile Include="Validation.cpp" />
     <ClCompile Include="TextUtils.cpp" />
     <ClCompile Include="BusinessRuleSelfTest.cpp" />
+    <ClCompile Include="DateTime.cpp" />
+    <ClCompile Include="Sha256.cpp" />
+    <ClCompile Include="User.cpp" />
+    <ClCompile Include="UserDirectory.cpp" />
     <ClCompile Include="IDataStore.cpp" />
     <ClCompile Include="TextFileDataStore.cpp" />
     <ClCompile Include="InMemoryDataStore.cpp" />
+    <ClCompile Include="DataFileFormat.cpp" />
+    <ClCompile Include="BundleDataStore.cpp" />
+    <ClCompile Include="RemoteDataStore.cpp" />
     <ClCompile Include="GuiUtils.cpp" />
     <ClCompile Include="ReportListView.cpp" />
     <ClCompile Include="ModalDialog.cpp" />
     <ClCompile Include="AddEditVehicleDialog.cpp" />
     <ClCompile Include="RentDialog.cpp" />
     <ClCompile Include="ReturnDialog.cpp" />
+    <ClCompile Include="LoginDialog.cpp" />
+    <ClCompile Include="UsersDialog.cpp" />
+    <ClCompile Include="ChangePasswordDialog.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>

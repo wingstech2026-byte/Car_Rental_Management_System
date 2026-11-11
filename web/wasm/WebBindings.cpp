@@ -14,11 +14,17 @@
 // returned as {"ok":false,"field":...,"message":...}, just like
 // ModalDialog::handleOk() shows them in a message box.
 //
-// Persistence: TextFileDataStore reads and writes /data/vehicles.txt and
-// /data/revenue.txt in Emscripten's in-memory file system; the page copies
-// those files to and from the browser's localStorage.
+// Persistence: all data travels as one text "bundle" (DataFileFormat) through
+// a BundleDataStore - an IDataStore like the desktop's TextFileDataStore. The
+// page moves the bundle to and from the browser storage or the shared online
+// database.
+//
+// Users and roles: login() authenticates against the C++ UserDirectory; from
+// then on RentalAgency itself refuses operations the user's role does not allow.
 // =============================================================================
+#include "BundleDataStore.h"
 #include "BusinessRuleSelfTest.h"
+#include "DateTime.h"
 #include "IDataStore.h"
 #include "Money.h"
 #include "Receipt.h"
@@ -27,7 +33,7 @@
 #include "RentalRecord.h"
 #include "RentalStatistics.h"
 #include "Renter.h"
-#include "TextFileDataStore.h"
+#include "User.h"
 #include "TextUtils.h"
 #include "Validation.h"
 #include "Vehicle.h"
@@ -92,6 +98,8 @@ namespace
         case InputField::Phone: return "phone";
         case InputField::AgreedRate: return "agreed";
         case InputField::RentalDays: return "days";
+        case InputField::Username: return "username";
+        case InputField::Password: return "password";
         default: return "";
         }
     }
@@ -143,7 +151,8 @@ namespace
             json += ",\"renter\":" + jsonString(rental->getRenter().getName()) +
                     ",\"phone\":" + jsonString(rental->getRenter().getPhone()) +
                     ",\"agreed\":" + jsonString(rental->getAgreedDailyRate().toDisplayString()) +
-                    ",\"agreedCents\":" + std::to_string(rental->getAgreedDailyRate().cents());
+                    ",\"agreedCents\":" + std::to_string(rental->getAgreedDailyRate().cents()) +
+                    ",\"startDate\":" + jsonString(rental->getStartDate() ? rental->getStartDate()->toString() : std::wstring());
         }
         return json + "}";
     }
@@ -162,26 +171,112 @@ namespace
 class WebApp
 {
 public:
-    WebApp() : m_store("/data") {}
-
-    /// Loads /data/*.txt through the IDataStore interface (polymorphism).
-    std::string load()
+    /// Loads a data bundle through the IDataStore interface (polymorphism).
+    /// An empty text means "no data yet" (the default user accounts are created).
+    std::string loadBundle(const std::string& bundle)
     {
-        return guarded([this] {
+        return guarded([&] {
+            m_store.setBundle(fromJs(bundle));
             IDataStore& store = m_store;
             const std::vector<std::wstring> warnings = m_agency.loadFrom(store);
             return "\"warnings\":" + stringArray(warnings);
         });
     }
 
-    /// File > Save: writes /data/*.txt through the IDataStore interface.
-    std::string save()
+    /// Save: writes all data into a bundle through the IDataStore interface and returns it.
+    std::string saveBundle()
     {
         return guarded([this] {
             IDataStore& store = m_store;
             m_agency.saveTo(store);
+            return "\"bundle\":" + jsonString(m_store.getBundle());
+        });
+    }
+
+    /// Called by the page when storing the bundle failed (for example a conflict).
+    void markUnsaved()
+    {
+        m_agency.markUnsaved();
+    }
+
+    // ---- Users and roles ------------------------------------------------------------
+
+    std::string login(const std::string& username, const std::string& password)
+    {
+        return guarded([&] {
+            m_agency.login(fromJs(username), fromJs(password));
+            return sessionBody();
+        });
+    }
+
+    std::string logout()
+    {
+        m_agency.logout();
+        return "{\"ok\":true}";
+    }
+
+    std::string session() const
+    {
+        return "{" + sessionBody() + "}";
+    }
+
+    std::string users() const
+    {
+        return guarded([this] {
+            m_agency.requirePermission(Permission::ManageUsers);
+            std::string json = "\"users\":[";
+            bool first = true;
+            for (const User& user : m_agency.getUsers())
+            {
+                json += (first ? "" : ",");
+                json += "{\"username\":" + jsonString(user.getUsername()) + ",\"role\":" + jsonString(toString(user.getRole())) + "}";
+                first = false;
+            }
+            return json + "]";
+        });
+    }
+
+    std::string addUser(const std::string& username, const std::string& password, const std::string& role)
+    {
+        return guarded([&] {
+            Role parsedRole = Role::Clerk;
+            if (!tryParseRole(fromJs(role), parsedRole))
+            {
+                throw ValidationException(InputField::None, L"Please choose a role.");
+            }
+            m_agency.addUser(fromJs(username), fromJs(password), parsedRole);
             return std::string();
         });
+    }
+
+    std::string removeUser(const std::string& username)
+    {
+        return guarded([&] {
+            m_agency.removeUser(fromJs(username));
+            return std::string();
+        });
+    }
+
+    std::string resetPassword(const std::string& username, const std::string& password)
+    {
+        return guarded([&] {
+            m_agency.resetPassword(fromJs(username), fromJs(password));
+            return std::string();
+        });
+    }
+
+    std::string changePassword(const std::string& currentPassword, const std::string& newPassword)
+    {
+        return guarded([&] {
+            m_agency.changeOwnPassword(fromJs(currentPassword), fromJs(newPassword));
+            return sessionBody();
+        });
+    }
+
+    /// Rental days calculated from the rental start date (pre-filled in the return dialog).
+    std::string suggestedDays(const std::string& plate) const
+    {
+        return guarded([&] { return "\"days\":" + std::to_string(m_agency.suggestedRentalDays(fromJs(plate))); });
     }
 
     /// Everything the page needs to draw the three tabs and the status bar.
@@ -270,6 +365,11 @@ public:
     /// Dashboard and reports, calculated by the C++ RentalStatistics class.
     std::string statistics() const
     {
+        return guarded([this] { return statisticsBody(); }); // Managers only (RentalStatistics checks)
+    }
+
+    std::string statisticsBody() const
+    {
         const RentalStatistics stats(m_agency);
         std::string byModel = "[";
         for (std::size_t index = 0; index < stats.getRevenueByModel().size(); ++index)
@@ -297,7 +397,7 @@ public:
         }
         topVehicles += "]";
 
-        return "{\"vehicles\":" + std::to_string(stats.getVehicleCount()) +
+        return "\"vehicles\":" + std::to_string(stats.getVehicleCount()) +
                ",\"available\":" + std::to_string(stats.getAvailableCount()) +
                ",\"rented\":" + std::to_string(stats.getRentedCount()) +
                ",\"utilization\":" + std::to_string(stats.getUtilizationPercent()) +
@@ -307,7 +407,7 @@ public:
                ",\"totalCharged\":" + jsonString(stats.getTotalCharged().toDisplayString()) +
                ",\"averageCharge\":" + jsonString(stats.getAverageCharge().toDisplayString()) +
                ",\"averageDays\":" + jsonString(stats.getAverageDaysText()) +
-               ",\"byModel\":" + byModel + ",\"topVehicles\":" + topVehicles + "}";
+               ",\"byModel\":" + byModel + ",\"topVehicles\":" + topVehicles;
     }
 
     /// Checks that a vehicle may be rented (throws if it is already rented).
@@ -364,6 +464,7 @@ public:
                    ",\"rate\":" + jsonString(receipt.getAgreedDailyRate().toDisplayString()) +
                    ",\"days\":" + std::to_string(receipt.getDays()) +
                    ",\"total\":" + jsonString(receipt.getTotalCharge().toDisplayString()) +
+                   ",\"startedOn\":" + jsonString(receipt.getStartedOn()) +
                    ",\"text\":" + jsonString(receipt.toDisplayText()) + "}";
         });
     }
@@ -388,7 +489,8 @@ public:
                     ",\"rateCents\":" + std::to_string(receipt.getAgreedDailyRate().cents()) +
                     ",\"days\":" + std::to_string(receipt.getDays()) +
                     ",\"total\":" + jsonString(receipt.getTotalCharge().toDisplayString()) +
-                    ",\"totalCents\":" + std::to_string(receipt.getTotalCharge().cents()) + "}";
+                    ",\"totalCents\":" + std::to_string(receipt.getTotalCharge().cents()) +
+                    ",\"startedOn\":" + jsonString(receipt.getStartedOn()) + "}";
         }
         return json + "],\"count\":" + std::to_string(records.size()) +
                ",\"total\":" + jsonString(RentalAgency::totalCharged(records).toDisplayString()) + "}";
@@ -411,16 +513,45 @@ public:
     }
 
 private:
+    /// "loggedIn", user name, role and the permissions of the logged-in user.
+    std::string sessionBody() const
+    {
+        const User* user = m_agency.getCurrentUser();
+        if (user == nullptr)
+        {
+            return "\"loggedIn\":false";
+        }
+        const auto flag = [this](Permission permission) { return m_agency.isAllowed(permission) ? "true" : "false"; };
+        return std::string("\"loggedIn\":true,\"username\":") + jsonString(user->getUsername()) +
+               ",\"role\":" + jsonString(toString(user->getRole())) +
+               ",\"defaultPasswords\":" + (m_agency.usesDefaultPasswords() ? "true" : "false") +
+               ",\"can\":{\"manageFleet\":" + flag(Permission::ManageFleet) +
+               ",\"rentAndReturn\":" + flag(Permission::RentAndReturn) +
+               ",\"viewReports\":" + flag(Permission::ViewReports) +
+               ",\"manageUsers\":" + flag(Permission::ManageUsers) +
+               ",\"manageData\":" + flag(Permission::ManageData) + "}";
+    }
+
     RentalAgency m_agency;
-    TextFileDataStore m_store;
+    BundleDataStore m_store;
 };
 
 EMSCRIPTEN_BINDINGS(car_rental)
 {
     emscripten::class_<WebApp>("WebApp")
         .constructor<>()
-        .function("load", &WebApp::load)
-        .function("save", &WebApp::save)
+        .function("loadBundle", &WebApp::loadBundle)
+        .function("saveBundle", &WebApp::saveBundle)
+        .function("markUnsaved", &WebApp::markUnsaved)
+        .function("login", &WebApp::login)
+        .function("logout", &WebApp::logout)
+        .function("session", &WebApp::session)
+        .function("users", &WebApp::users)
+        .function("addUser", &WebApp::addUser)
+        .function("removeUser", &WebApp::removeUser)
+        .function("resetPassword", &WebApp::resetPassword)
+        .function("changePassword", &WebApp::changePassword)
+        .function("suggestedDays", &WebApp::suggestedDays)
         .function("state", &WebApp::state)
         .function("search", &WebApp::search)
         .function("addVehicle", &WebApp::addVehicle)

@@ -10,6 +10,8 @@
 //   * Read-only queries return copies (std::vector<Vehicle>), so callers can
 //     never modify the fleet behind the agency's back (encapsulation).
 //   * Persistence is done through the IDataStore interface (polymorphism).
+//   * Role-based access control: once a user has logged in, every protected
+//     use case checks the user's Permission and throws AccessDeniedException.
 // =============================================================================
 #pragma once
 
@@ -17,10 +19,13 @@
 #include "Receipt.h"
 #include "RentalRecord.h"
 #include "Renter.h"
+#include "User.h"
+#include "UserDirectory.h"
 #include "Vehicle.h"
 
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -68,6 +73,11 @@ public:
     /// @throws VehicleNotFoundException, VehicleNotRentedException, ValidationException
     Receipt returnVehicle(const std::wstring& plate, int days);
 
+    /// Rental days suggested for returning a vehicle now, calculated from the
+    /// rental start date (every started 24 hours counts, at least 1).
+    /// @throws VehicleNotFoundException, VehicleNotRentedException
+    int suggestedRentalDays(const std::wstring& plate) const;
+
     /// 6. All vehicles that are currently rented.
     std::vector<Vehicle> getRentedVehicles() const;
 
@@ -113,6 +123,38 @@ public:
     /// True if something changed since the last load/save.
     bool hasUnsavedChanges() const noexcept;
 
+    /// Marks the data as not saved (used when storing a saved copy failed afterwards).
+    void markUnsaved() noexcept;
+
+    // ---- Users and access control --------------------------------------------------
+
+    /// Logs a user in. @throws AuthenticationException
+    const User& login(const std::wstring& username, const std::wstring& password);
+    void logout() noexcept;
+
+    /// The logged-in user, or nullptr.
+    const User* getCurrentUser() const;
+
+    /// True if the logged-in user may perform the operation (always true when nobody is logged in).
+    bool isAllowed(Permission permission) const;
+
+    /// @throws AccessDeniedException if the logged-in user may not perform the operation.
+    void requirePermission(Permission permission) const;
+
+    /// Manager only. @throws AccessDeniedException, ValidationException
+    void addUser(const std::wstring& username, const std::wstring& password, Role role);
+    void removeUser(const std::wstring& username);
+    void resetPassword(const std::wstring& username, const std::wstring& newPassword);
+
+    /// Any logged-in user. @throws ValidationException (wrong current password, invalid new password)
+    void changeOwnPassword(const std::wstring& currentPassword, const std::wstring& newPassword);
+
+    /// All accounts (salted password hashes only).
+    std::vector<User> getUsers() const;
+
+    /// True if a default account (manager/manager123, clerk/clerk123) still has its default password.
+    bool usesDefaultPasswords() const;
+
     // ---- Persistence (through the abstract interface) --------------------------
 
     /// Replaces the current data with the data from the store.
@@ -130,5 +172,7 @@ private:
     std::map<std::wstring, Vehicle> m_fleet; ///< Key = upper-case plate (unique, sorted).
     Money m_revenue;                         ///< Cumulative rental revenue.
     std::vector<RentalRecord> m_history;     ///< Completed rentals, oldest first.
+    UserDirectory m_users;                   ///< User accounts.
+    std::optional<std::wstring> m_currentUser; ///< User name of the logged-in user.
     bool m_modified = false;                 ///< Unsaved changes?
 };

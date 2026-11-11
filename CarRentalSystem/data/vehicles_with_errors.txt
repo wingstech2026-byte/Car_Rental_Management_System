@@ -10,3 +10,4 @@ NEW-006|Kia Rio|80.00|Rented|Ann Lee|12ab34|80.00
 NEW-007|Kia Picanto|0|Available|||
 NEW-008|Kia Rio|80.00|Lost|||
 NEW-009|Hyundai i20|95.00|Available|||
+NEW-010|Kia Rio|80.00|Rented|Ann Lee|0912345678|80.00|2026-02-30 10:00

@@ -20,7 +20,8 @@ class RentalAgency;
 class ReturnDialog final : public ModalDialog
 {
 public:
-    ReturnDialog(HINSTANCE instance, RentalAgency& agency, const Vehicle& vehicle);
+    /// @param suggestedDays pre-filled number of days (calculated from the rental start date).
+    ReturnDialog(HINSTANCE instance, RentalAgency& agency, const Vehicle& vehicle, int suggestedDays);
 
     /// The receipt of the completed return (set after OK).
     const std::optional<Receipt>& receipt() const noexcept;
@@ -35,6 +36,7 @@ private:
 
     RentalAgency& m_agency;
     Vehicle m_vehicle; ///< Copy, used for display and the preview.
+    int m_suggestedDays;
     std::optional<Receipt> m_receipt;
     Gui::FontHandle m_previewFont; ///< Bold font for the preview (RAII).
 };

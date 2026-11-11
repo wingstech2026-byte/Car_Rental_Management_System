@@ -2,23 +2,34 @@
 // main.cpp - program entry point.
 // -----------------------------------------------------------------------------
 // Wires the layers together:
-//   TextFileDataStore (persistence)  ->  RentalAgency (business logic)  ->  MainWindow (GUI)
-// The agency and the window only see the data store through an IDataStore&
-// reference, so the storage technique can be replaced without changing them.
+//   data store (persistence)  ->  RentalAgency (business logic)  ->  MainWindow (GUI)
+//
+// POLYMORPHISM: the data store is chosen at run time -
+//   * RemoteDataStore   (shared online database) if "server.txt" next to the
+//                       .exe contains the web address of the site, otherwise
+//   * TextFileDataStore (text files next to the .exe).
+// The agency and the window only see it through an IDataStore& reference.
+//
+// The user must log in before the main window opens.
 // =============================================================================
 #include "Win32Include.h"
 
 #include <commctrl.h>
 
 #include "IDataStore.h"
+#include "LoginDialog.h"
 #include "MainWindow.h"
 #include "RentalAgency.h"
+#include "RemoteDataStore.h"
 #include "RentalExceptions.h"
 #include "TextFileDataStore.h"
 #include "TextUtils.h"
 
 #include <exception>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -49,6 +60,19 @@ namespace
         }
         return std::filesystem::path(buffer).parent_path();
     }
+
+    /// The web address in "server.txt" next to the .exe, or an empty text if there is none.
+    std::wstring readServerAddress(const std::filesystem::path& directory)
+    {
+        std::ifstream input(directory / L"server.txt", std::ios::binary);
+        if (!input)
+        {
+            return std::wstring();
+        }
+        const std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        const std::wstring text = TextUtils::trim(TextUtils::fromUtf8Lenient(bytes));
+        return text.rfind(L"http", 0) == 0 ? text.substr(0, text.find_first_of(L" \r\n\t")) : std::wstring();
+    }
 }
 
 int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int showCommand)
@@ -64,19 +88,65 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ LPWSTR, _I
 
     try
     {
-        // All objects live on the stack and are destroyed automatically (RAII).
-        TextFileDataStore textFileStore(executableDirectory());
-        IDataStore& store = textFileStore; // from here on only the interface is used
+        // All objects are owned by RAII objects and destroyed automatically.
+        const std::filesystem::path folder = executableDirectory();
+        TextFileDataStore textFileStore(folder);
+        const std::wstring serverAddress = readServerAddress(folder);
+        std::unique_ptr<RemoteDataStore> remoteStore;
+        if (!serverAddress.empty())
+        {
+            remoteStore = std::make_unique<RemoteDataStore>(serverAddress);
+        }
+        IDataStore& store = remoteStore ? static_cast<IDataStore&>(*remoteStore) : textFileStore; // only the interface from here on
         RentalAgency agency;
 
         std::vector<std::wstring> warnings;
-        try
+        LoginDialog::LoginAction loginAction;
+        std::wstring loginInfo;
+        if (remoteStore)
         {
-            warnings = agency.loadFrom(store); // missing files = empty data
+            // Shared online database: the server checks the account before it sends any data.
+            loginAction = [&](const std::wstring& username, const std::wstring& password) {
+                remoteStore->setCredentials(username, password);
+                warnings = agency.loadFrom(store); // throws AuthenticationException for a wrong password
+                if (remoteStore->wasEmpty())
+                {
+                    // Nothing online yet: start from the local data; the first save uploads it.
+                    warnings = agency.loadFrom(textFileStore);
+                    agency.markUnsaved();
+                }
+                agency.login(username, password);
+            };
+            loginInfo = L"Data: shared online database\n" + serverAddress +
+                        L"\n\nFirst start: manager / manager123 or clerk / clerk123.";
         }
-        catch (const RentalException& error)
+        else
         {
-            warnings.push_back(L"The data files could not be read: " + error.message());
+            try
+            {
+                warnings = agency.loadFrom(store); // missing files = empty data and the default accounts
+            }
+            catch (const RentalException& error)
+            {
+                warnings.push_back(L"The data files could not be read: " + error.message());
+            }
+            loginAction = [&](const std::wstring& username, const std::wstring& password) { agency.login(username, password); };
+            loginInfo = L"Data: files in " + folder.wstring() +
+                        (agency.usesDefaultPasswords() ? L"\n\nDefault accounts: manager / manager123 (Manager) and clerk / clerk123 (Clerk)."
+                                                       : L"");
+        }
+
+        LoginDialog login(instance, loginAction, loginInfo);
+        if (!login.showModal(nullptr))
+        {
+            return 0; // "Exit" in the login dialog
+        }
+        if (agency.usesDefaultPasswords() && agency.isAllowed(Permission::ManageUsers))
+        {
+            MessageBoxW(nullptr,
+                        L"The default accounts still use their default passwords (manager123 / clerk123).\n\n"
+                        L"Please change them in Users > Manage Users and save.",
+                        L"Security reminder", MB_OK | MB_ICONWARNING);
         }
 
         MainWindow window(instance, agency, store);

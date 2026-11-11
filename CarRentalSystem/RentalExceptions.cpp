@@ -73,3 +73,26 @@ DataStoreException::DataStoreException(const std::wstring& text)
     : RentalException(text)
 {
 }
+
+// ---- DataConflictException ----------------------------------------------------
+
+DataConflictException::DataConflictException()
+    : DataStoreException(L"The shared data was changed by another user after you loaded it. "
+                         L"Your changes were NOT saved. Reload the data and repeat your changes.")
+{
+}
+
+// ---- AuthenticationException --------------------------------------------------
+
+AuthenticationException::AuthenticationException()
+    : RentalException(L"Incorrect user name or password.")
+{
+}
+
+// ---- AccessDeniedException ----------------------------------------------------
+
+AccessDeniedException::AccessDeniedException(const std::wstring& roleName, const std::wstring& action)
+    : RentalException(L"Access denied: a " + roleName + L" is not allowed to " + action +
+                      L". Please ask a Manager.")
+{
+}

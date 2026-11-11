@@ -14,8 +14,8 @@ namespace
     constexpr wchar_t MultiplicationSign = static_cast<wchar_t>(0x00D7); // the "x" sign used in the preview
 }
 
-ReturnDialog::ReturnDialog(HINSTANCE instance, RentalAgency& agency, const Vehicle& vehicle)
-    : ModalDialog(instance, IDD_RETURN), m_agency(agency), m_vehicle(vehicle)
+ReturnDialog::ReturnDialog(HINSTANCE instance, RentalAgency& agency, const Vehicle& vehicle, int suggestedDays)
+    : ModalDialog(instance, IDD_RETURN), m_agency(agency), m_vehicle(vehicle), m_suggestedDays(suggestedDays)
 {
 }
 
@@ -35,6 +35,7 @@ bool ReturnDialog::onInitDialog()
         setControlText(IDC_RET_RENTER, rental->getRenter().getName());
         setControlText(IDC_RET_PHONE, rental->getRenter().getPhone());
         setControlText(IDC_RET_RATE, rental->getAgreedDailyRate().toDisplayString());
+        setControlText(IDC_RET_START, rental->getStartDate() ? rental->getStartDate()->toString() : L"(unknown)");
     }
 
     // Bold font for the charge preview, derived from the dialog's own (DPI-scaled) font.
@@ -50,9 +51,9 @@ bool ReturnDialog::onInitDialog()
 
     // Spin control: range 1..MaxRentalDays, starts at 1.
     SendDlgItemMessageW(dialog, IDC_DAYS_SPIN, UDM_SETRANGE32, 1, Validation::MaxRentalDays);
-    SendDlgItemMessageW(dialog, IDC_DAYS_SPIN, UDM_SETPOS32, 0, 1);
+    SendDlgItemMessageW(dialog, IDC_DAYS_SPIN, UDM_SETPOS32, 0, m_suggestedDays);
     limitText(IDC_DAYS_EDIT, 9);
-    setControlText(IDC_DAYS_EDIT, L"1");
+    setControlText(IDC_DAYS_EDIT, std::to_wstring(m_suggestedDays)); // calculated from the start date
 
     updatePreview();
     focusControl(IDC_DAYS_EDIT);

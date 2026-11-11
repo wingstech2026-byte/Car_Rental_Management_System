@@ -3,6 +3,7 @@
 // =============================================================================
 #include "RentalAgency.h"
 
+#include "DateTime.h"
 #include "IDataStore.h"
 #include "RentalExceptions.h"
 #include "TextUtils.h"
@@ -15,6 +16,7 @@
 const Vehicle& RentalAgency::addVehicle(const std::wstring& plate, const std::wstring& model,
                                         const Money& dailyRate)
 {
+    requirePermission(Permission::ManageFleet);
     Vehicle vehicle(plate, model, dailyRate); // validates and normalises (plate -> upper case)
     const std::wstring key = vehicle.getPlate();
     if (m_fleet.find(key) != m_fleet.end())
@@ -28,12 +30,14 @@ const Vehicle& RentalAgency::addVehicle(const std::wstring& plate, const std::ws
 
 void RentalAgency::editVehicle(const std::wstring& plate, const std::wstring& model, const Money& dailyRate)
 {
+    requirePermission(Permission::ManageFleet);
     findMutableVehicle(plate).edit(model, dailyRate); // Vehicle refuses if it is rented
     m_modified = true;
 }
 
 void RentalAgency::removeVehicle(const std::wstring& plate)
 {
+    requirePermission(Permission::ManageFleet);
     const Vehicle& vehicle = findVehicle(plate);
     if (!vehicle.isAvailable())
     {
@@ -83,18 +87,27 @@ std::vector<Vehicle> RentalAgency::searchAvailableByModel(const std::wstring& qu
 
 void RentalAgency::rentVehicle(const std::wstring& plate, const Renter& renter, const Money& agreedDailyRate)
 {
-    findMutableVehicle(plate).rent(renter, agreedDailyRate); // Vehicle refuses if already rented
+    requirePermission(Permission::RentAndReturn);
+    // The start date is recorded so the rental days can be calculated automatically on return.
+    findMutableVehicle(plate).rent(renter, agreedDailyRate, DateTime::now()); // Vehicle refuses if already rented
     m_modified = true;
 }
 
 Receipt RentalAgency::returnVehicle(const std::wstring& plate, int days)
 {
+    requirePermission(Permission::RentAndReturn);
     Vehicle& vehicle = findMutableVehicle(plate);
     Receipt receipt = vehicle.returnVehicle(days); // Vehicle refuses if not rented / bad days
     m_revenue += receipt.getTotalCharge();
     m_history.emplace_back(nextReceiptNumber(), RentalRecord::currentTimestamp(), receipt); // archive it
     m_modified = true;
     return receipt;
+}
+
+int RentalAgency::suggestedRentalDays(const std::wstring& plate) const
+{
+    const Vehicle& vehicle = findRentedVehicle(plate);
+    return vehicle.getRental()->rentalDaysUntil(DateTime::now());
 }
 
 std::vector<RentalRecord> RentalAgency::getHistory() const
@@ -236,6 +249,11 @@ bool RentalAgency::hasUnsavedChanges() const noexcept
     return m_modified;
 }
 
+void RentalAgency::markUnsaved() noexcept
+{
+    m_modified = true;
+}
+
 // ---- Persistence ----------------------------------------------------------------
 
 std::vector<std::wstring> RentalAgency::loadFrom(IDataStore& store)
@@ -253,17 +271,114 @@ std::vector<std::wstring> RentalAgency::loadFrom(IDataStore& store)
         }
     }
 
+    UserDirectory users;
+    users.replaceAll(result.users, result.warnings); // adds the default accounts if none exist
+
     m_fleet = std::move(fleet);
     m_revenue = result.revenue;
     m_history = std::move(result.history);
+    m_users = std::move(users);
+    if (m_currentUser && m_users.find(*m_currentUser) == nullptr)
+    {
+        m_currentUser.reset(); // the logged-in account no longer exists
+    }
     m_modified = false;
     return result.warnings;
 }
 
 void RentalAgency::saveTo(IDataStore& store)
 {
-    store.save(getAllVehicles(), m_revenue, m_history); // virtual call
+    AgencyData data;
+    data.vehicles = getAllVehicles();
+    data.revenue = m_revenue;
+    data.history = m_history;
+    data.users = m_users.getUsers();
+    store.save(data); // virtual call -> TextFileDataStore::save(), RemoteDataStore::save(), ...
     m_modified = false;
+}
+
+// ---- Users and access control ----------------------------------------------------
+
+const User& RentalAgency::login(const std::wstring& username, const std::wstring& password)
+{
+    const User& user = m_users.authenticate(username, password); // throws AuthenticationException
+    m_currentUser = user.getUsername();
+    return user;
+}
+
+void RentalAgency::logout() noexcept
+{
+    m_currentUser.reset();
+}
+
+const User* RentalAgency::getCurrentUser() const
+{
+    return m_currentUser ? m_users.find(*m_currentUser) : nullptr;
+}
+
+bool RentalAgency::isAllowed(Permission permission) const
+{
+    const User* user = getCurrentUser();
+    // Access control is active as soon as somebody has logged in (both user
+    // interfaces always require a login first). Without a login - for example
+    // in the automated tests - every operation is allowed.
+    return user == nullptr ? !m_currentUser.has_value() : user->can(permission);
+}
+
+void RentalAgency::requirePermission(Permission permission) const
+{
+    if (!isAllowed(permission))
+    {
+        const User* user = getCurrentUser();
+        throw AccessDeniedException(user != nullptr ? toString(user->getRole()) : std::wstring(L"user"),
+                                    describe(permission));
+    }
+}
+
+void RentalAgency::addUser(const std::wstring& username, const std::wstring& password, Role role)
+{
+    requirePermission(Permission::ManageUsers);
+    m_users.addUser(username, password, role);
+    m_modified = true;
+}
+
+void RentalAgency::removeUser(const std::wstring& username)
+{
+    requirePermission(Permission::ManageUsers);
+    m_users.removeUser(username, m_currentUser ? *m_currentUser : std::wstring());
+    m_modified = true;
+}
+
+void RentalAgency::resetPassword(const std::wstring& username, const std::wstring& newPassword)
+{
+    requirePermission(Permission::ManageUsers);
+    m_users.resetPassword(username, newPassword);
+    m_modified = true;
+}
+
+void RentalAgency::changeOwnPassword(const std::wstring& currentPassword, const std::wstring& newPassword)
+{
+    const User* user = getCurrentUser();
+    if (user == nullptr)
+    {
+        throw RentalException(L"Please log in first.");
+    }
+    if (!user->checkPassword(currentPassword))
+    {
+        throw ValidationException(InputField::Password, L"The current password is not correct.");
+    }
+    m_users.resetPassword(user->getUsername(), newPassword);
+    m_modified = true;
+}
+
+std::vector<User> RentalAgency::getUsers() const
+{
+    return m_users.getUsers();
+}
+
+bool RentalAgency::usesDefaultPasswords() const
+{
+    return m_users.usesDefaultPasswords();
 }
 
 // ---- Private helpers ------------------------------------------------------------

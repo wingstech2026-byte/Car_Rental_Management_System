@@ -15,6 +15,7 @@ RentalStatistics::RentalStatistics(const RentalAgency& agency)
       m_rentedCount(agency.getRentedCount()),
       m_revenue(agency.getRevenue())
 {
+    agency.requirePermission(Permission::ViewReports); // reports are for Managers only
     // Expected daily income from the vehicles that are rented right now.
     for (const Vehicle& vehicle : agency.getRentedVehicles())
     {

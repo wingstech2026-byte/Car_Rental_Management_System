@@ -8,6 +8,7 @@ Run the tests **in order**: the later revenue figures depend on the earlier step
 2. In `x64\Debug\`, delete `vehicles.txt` and `revenue.txt` if they exist.
 3. Build again. The post-build step copies fresh sample data.
 4. Press **F5**.
+5. Log in as **manager** with the password **manager123**, unless a test says otherwise. Click **OK** on the reminder to change the default passwords.
 
 **Starting data** (from `data\vehicles.txt` and `data\revenue.txt`)
 
@@ -32,7 +33,7 @@ Use the ☐ boxes to tick off each test.
 
 | # | Action | Expected result | ☐ |
 |---|---|---|---|
-| 0.1 | Start the program. | Window title is **"Car Rental Management System"** (no `*`). Modern themed controls in Segoe UI. No warning dialog appears. | ☐ |
+| 0.1 | Start the program and log in as manager / manager123. | After the login and the password reminder, the window title is **"Car Rental Management System  -  manager (Manager)"** (no `*`). Modern themed controls in Segoe UI. No data warning appears. | ☐ |
 | 0.2 | Look at the **Fleet** tab. | 8 vehicles with columns Plate / Model / Daily Rate / Status. Available rows are **light green**, Rented rows are **light orange**. Daily Rate is right-aligned with 2 decimals. | ☐ |
 | 0.3 | Look at the status bar. | `Total vehicles: 8` \| `Available: 5` \| `Rented: 3` \| `Revenue: 3,250.00` \| `Loaded 8 vehicles from …` | ☐ |
 | 0.4 | Drag the window corner to make it as small as possible. | It stops at about 1000×650 (scaled for the DPI). All controls move and resize with the window. | ☐ |
@@ -177,7 +178,7 @@ Rentals & Returns tab → select **HON-222** (Maria Garcia, 145.50) → **Return
 
 | # | Action | Expected result | ☐ |
 |---|---|---|---|
-| 9.1 | Close the program. Copy `CarRentalSystem\data\vehicles_with_errors.txt` over `x64\Debug\vehicles.txt`. Start the program. | **One** warning dialog: *"10 entries in the data files could not be loaded and were skipped:"*. It lists line 2 (duplicate plate ABC-123), line 3 (invalid plate "BAD PLATE"), line 4 (rate -20.00), line 5 (rate 99.999, more than 2 decimals), line 6 (Rented without renter information), line 7 (expected 7 fields, found 3), line 8 (empty model), line 9 (invalid telephone), line 10 (rate 0), line 11 (unknown status "Lost"). | ☐ |
+| 9.1 | Close the program. Copy `CarRentalSystem\data\vehicles_with_errors.txt` over `x64\Debug\vehicles.txt`. Start the program. | **One** warning dialog: *"11 entries in the data files could not be loaded and were skipped:"*. It lists line 2 (duplicate plate ABC-123), line 3 (invalid plate "BAD PLATE"), line 4 (rate -20.00), line 5 (rate 99.999, more than 2 decimals), line 6 (Rented without renter information), line 7 (expected 7 or 8 fields, found 3), line 8 (empty model), line 9 (invalid telephone), line 10 (rate 0), line 11 (unknown status "Lost"), line 13 (invalid rental start date "2026-02-30 10:00"). | ☐ |
 | 9.2 | Click OK. | The fleet contains only **ABC-123** and **NEW-009** (the valid lines). | ☐ |
 | 9.3 | Close the program. There is no save prompt, because loading is not a change. Replace the content of `revenue.txt` with the text `abc`. Start the program. | Warning: *"revenue.txt skipped: "abc" is not a valid amount - cumulative revenue starts at 0.00."* Revenue shows 0.00. | ☐ |
 | 9.4 | Close. **Delete** `vehicles.txt`, `revenue.txt` and `history.txt`. Start the program. | No error. Empty fleet, revenue 0.00, empty rental history (missing files = empty data). | ☐ |
@@ -199,7 +200,7 @@ Rentals & Returns tab → select **HON-222** (Maria Garcia, 145.50) → **Return
 
 | # | Action | Expected result | ☐ |
 |---|---|---|---|
-| 11.1 | **Help > Run Business Rule Self-Test** | *"40 of 40 business-rule checks passed."* It lists `[PASS]` for every rule: duplicate plate, invalid plate, empty/`\|` model, invalid rates, empty name, invalid phones, renting a rented vehicle, editing a rented vehicle, returning an available vehicle, invalid days (0, -2, 2.5, abc, empty, 99999), the correct charge (140.50 × 3 = 421.50), the rental history (archiving, search, invalid date rejected), fleet search and filter, removing vehicles (rented ones refused), statistics, exact money arithmetic, and the save/load round trip through `IDataStore&` (polymorphism). It runs on a temporary agency, so your real data is unchanged (the title does not get a `*`). | ☐ |
+| 11.1 | **Help > Run Business Rule Self-Test** | *"50 of 50 business-rule checks passed."* It lists `[PASS]` for every rule: duplicate plate, invalid plate, empty/`\|` model, invalid rates, empty name, invalid phones, renting a rented vehicle, editing a rented vehicle, returning an available vehicle, invalid days (0, -2, 2.5, abc, empty, 99999), the correct charge (140.50 × 3 = 421.50), the rental history (archiving, search, invalid date rejected), fleet search and filter, removing vehicles (rented ones refused), statistics, exact money arithmetic, the save/load round trip through `IDataStore&` (polymorphism), rental days from the start date, impossible dates, wrong passwords, Clerk restrictions, account rules, salted password hashes and the data bundle round trip. It runs on a temporary agency, so your real data is unchanged (the title does not get a `*`). | ☐ |
 
 ## 12. Rental history
 
@@ -240,3 +241,48 @@ Start from fresh sample data (step 9.5).
 | 14.2 | Look at **Revenue by model**. | BMW 520i 1,050.00 · Toyota Camry 900.00 · Honda Civic 700.00 · Toyota Corolla 600.00 (highest first). | ☐ |
 | 14.3 | Look at **Most rented vehicles**. | BMW-520, CAM-330, HON-111, ABC-123 (1 rental each, ordered by revenue). | ☐ |
 | 14.4 | Return **HON-222** for 3 days, then open Reports again. | 5 completed rentals, total charged 3,686.50; Honda Civic now has 2 rentals and 1,136.50 and moves to the top of "Revenue by model"; HON-111 and HON-222 appear in "Most rented vehicles"; utilization 25%. | ☐ |
+
+
+## 15. Log in, roles and user accounts
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 15.1 | Start the program. Enter `manager` and the password `wrong`. | *"Incorrect user name or password."* The login dialog stays open. | ☐ |
+| 15.2 | Log in as **manager / manager123**. | A reminder says the default accounts still use their default passwords. The title shows `manager (Manager)`. | ☐ |
+| 15.3 | **Users > Manage Users…** Add the user `anna` with the password `anna2026` and the role **Clerk**. | *"Account "anna" added."* The list shows `anna (Clerk)`, `clerk (Clerk)` and `manager (Manager)`. | ☐ |
+| 15.4 | Try to add `anna` again, then `bob` with the password `123`. | *"A user named "anna" already exists."*, then *"Password must be 6 to 64 characters long."* | ☐ |
+| 15.5 | Select `manager` in the list and click **Delete**. | *"You cannot delete your own account while you are logged in."* | ☐ |
+| 15.6 | Close the dialog and press Ctrl+S. **File > Log Out / Switch User** and log in as **anna / anna2026**. | The title shows `anna (Clerk)`. **Add Vehicle**, **Edit**, **Remove** and **Users > Manage Users** are greyed out. The Reports tab shows *"Reports and statistics are available to Managers only."* | ☐ |
+| 15.7 | As anna, rent and return a vehicle. | Both work, because Clerks may rent and return. | ☐ |
+| 15.8 | As anna, press the **Delete** key on an available vehicle in the Fleet tab. | *"Access denied: a Clerk is not allowed to add, edit or remove vehicles. Please ask a Manager."* This is checked by `RentalAgency`, not only by the GUI. | ☐ |
+| 15.9 | **Users > Change My Password**: current `anna2026`, new `anna2027` twice. Log out and log in with `anna2027`. | Works. The old password `anna2026` is now refused. | ☐ |
+| 15.10 | Open `users.txt` in Notepad. | One line per account: `username\|role\|salt\|hash`. No password appears in plain text. | ☐ |
+
+## 16. Rental start dates and automatic rental days
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 16.1 | Open **Rentals & Returns**. | The **Rented Since** column shows the start dates (for the sample data: BMW-520 2026-11-05 09:00, COR-202 2026-11-08 10:15, HON-222 2026-11-09 14:30). | ☐ |
+| 16.2 | Select **BMW-520** → **Return Selected…** | "Rented since: 2026-11-05 09:00". **Rental days** is already filled in with the number of started 24-hour periods until now (for example, 7 on 2026-11-11 at 12:00). The charge preview uses this value. | ☐ |
+| 16.3 | Change the days to `3` and click OK. | The receipt uses 3 days (the suggestion can be corrected), and it shows "Rented since". | ☐ |
+| 16.4 | Rent **ABC-123** and return it straight away. | The suggested rental days is **1** (minimum one day). | ☐ |
+| 16.5 | Open **Rental History** and show the newest receipt. | It shows the start date of the rental. | ☐ |
+
+## 17. Shared online database (several users)
+
+Requires the Upstash Redis database to be connected to the Vercel project (README section 3, *Shared online database*).
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 17.1 | Open the website. | The login screen says "Shared online database". After logging in, the top bar shows the same. | ☐ |
+| 17.2 | Create `server.txt` next to `CarRentalSystem.exe` containing the website address. Start the desktop program and log in as manager. | The login dialog says "Data: shared online database". The desktop program shows the same vehicles as the website. | ☐ |
+| 17.3 | On the website, rent a vehicle and save. In the desktop program, press **Ctrl+R** (File > Reload). | The desktop program now shows the vehicle as rented. | ☐ |
+| 17.4 | Change something in **both** programs without reloading, then save on the website first and then in the desktop program. | The second save is refused: *"The shared data was changed by another user after you loaded it. Your changes were NOT saved…"*. After **Reload** the change can be repeated and saved. Nobody's work was silently overwritten. | ☐ |
+| 17.5 | Log in with a wrong password on the website or in the desktop program. | Refused by the server: *"Incorrect user name or password."* | ☐ |
+
+## 18. Unit tests (GoogleTest)
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 18.1 | In Visual Studio: **Test > Test Explorer** → **Run All Tests**. | All tests pass (green), in the groups Money, Validation, DateTime, Sha256, Vehicle, Rental, RentalAgency, RentalStatistics, User, Roles, DataStores, DataFileFormat and BusinessRuleSelfTest. | ☐ |
+| 18.2 | Open `https://<your-site>/unit-tests.txt`. | The output of the same tests from the last deployment, ending in `[  PASSED  ]`. | ☐ |

@@ -55,4 +55,16 @@ namespace Validation
     /// Parses the number of rental days typed by the user. Rejects empty input,
     /// signs, decimals, letters, 0 and values above MaxRentalDays.
     int parseRentalDays(const std::wstring& text);
+
+    // ---- User accounts --------------------------------------------------------
+    constexpr std::size_t MinUsernameLength = 3;
+    constexpr std::size_t MaxUsernameLength = 20;
+    constexpr std::size_t MinPasswordLength = 6;
+    constexpr std::size_t MaxPasswordLength = 64;
+
+    /// Trims and lower-cases a user name; 3-20 characters: letters a-z, digits, '.', '_' or '-'.
+    std::wstring normalizeUsername(const std::wstring& rawUsername);
+
+    /// Checks a password: 6-64 characters, no '|' and no control characters.
+    void validatePassword(const std::wstring& password);
 }

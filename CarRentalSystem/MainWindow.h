@@ -91,6 +91,11 @@ private:
     void onShowHistoryReceipt();
     bool onSave();
     bool confirmSaveChanges();
+    void onReload();
+    void onLogout();
+    void onManageUsers();
+    void onChangePassword();
+    bool showLoginDialog();
     void onAbout() const;
     void onSelfTest() const;
 

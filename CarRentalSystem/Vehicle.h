@@ -59,7 +59,8 @@ public:
     /// Rents the vehicle to the renter at the agreed daily rate.
     /// @throws VehicleNotAvailableException if already rented.
     /// @throws ValidationException if the agreed rate is invalid.
-    void rent(const Renter& renter, const Money& agreedDailyRate);
+    void rent(const Renter& renter, const Money& agreedDailyRate,
+              std::optional<DateTime> startDate = std::nullopt);
 
     /// Ends the rental, calculates the charge and returns a receipt.
     /// @throws VehicleNotRentedException if the vehicle is not rented.

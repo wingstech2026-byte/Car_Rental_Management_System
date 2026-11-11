@@ -16,6 +16,9 @@
 #define IDD_VEHICLE             201
 #define IDD_RENT                202
 #define IDD_RETURN              203
+#define IDD_LOGIN               204
+#define IDD_USERS               205
+#define IDD_CHANGE_PASSWORD     206
 
 // ---- Add/Edit Vehicle dialog ---------------------------------------------------
 #define IDC_PLATE_EDIT          1001
@@ -40,6 +43,26 @@
 #define IDC_DAYS_EDIT           1206
 #define IDC_DAYS_SPIN           1207
 #define IDC_CHARGE_PREVIEW      1208
+#define IDC_RET_START           1209
+
+// ---- Login dialog ----------------------------------------------------------------
+#define IDC_LOGIN_USERNAME      1301
+#define IDC_LOGIN_PASSWORD      1302
+#define IDC_LOGIN_INFO          1303
+
+// ---- Users dialog ----------------------------------------------------------------
+#define IDC_USERS_LIST          1401
+#define IDC_USERS_NAME          1402
+#define IDC_USERS_PASSWORD      1403
+#define IDC_USERS_ROLE          1404
+#define IDC_USERS_ADD           1405
+#define IDC_USERS_REMOVE        1406
+#define IDC_USERS_RESET         1407
+
+// ---- Change password dialog ------------------------------------------------------
+#define IDC_PW_CURRENT          1501
+#define IDC_PW_NEW              1502
+#define IDC_PW_CONFIRM          1503
 
 // ---- Main window controls ------------------------------------------------------
 #define IDC_TAB                 2001
@@ -81,5 +104,9 @@
 #define ID_NEXT_TAB             40005
 #define ID_PREV_TAB             40006
 #define ID_FIND                 40007
+#define ID_FILE_RELOAD          40008
+#define ID_FILE_LOGOUT          40009
+#define ID_USERS_MANAGE         40010
+#define ID_USERS_PASSWORD       40011
 
 #endif // CAR_RENTAL_RESOURCE_H

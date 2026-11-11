@@ -3,23 +3,27 @@
  * -----------------------------------------------------------------------------
  * This file contains NO business rules. Every operation is a call into the
  * C++ class WebApp (web/wasm/WebBindings.cpp), which uses the same C++
- * RentalAgency, Vehicle, Money, Validation, RentalStatistics and
- * TextFileDataStore classes as the desktop program, compiled to WebAssembly.
- * This file only draws the screen, like MainWindow and the dialogs do in the
- * Win32 version.
+ * RentalAgency, Vehicle, Money, Validation, RentalStatistics, UserDirectory
+ * and DataFileFormat classes as the desktop program, compiled to WebAssembly.
+ * This file only draws the screen and moves the data "bundle" to and from:
+ *   - the shared online database (/api/data on the same site), if it is set up,
+ *   - otherwise this browser's local storage.
  * ========================================================================== */
 'use strict';
 
 (function () {
-  const STORAGE_VEHICLES = 'crms.vehicles.txt';
-  const STORAGE_REVENUE = 'crms.revenue.txt';
-  const STORAGE_HISTORY = 'crms.history.txt';
-  const DATA_DIR = '/data';
+  const STORAGE_BUNDLE = 'crms.bundle';
+  const OLD_KEYS = ['crms.vehicles.txt', 'crms.revenue.txt', 'crms.history.txt'];
   const TIMES = '×';
 
-  let engine = null;   // the compiled C++ module
-  let app = null;      // C++ WebApp instance
+  let engine = null;          // the compiled C++ module
+  let app = null;             // C++ WebApp instance
+  let mode = 'local';         // 'local' (this browser) or 'online' (shared database)
+  let remoteVersion = '0';    // version of the shared data we loaded (optimistic concurrency)
+  let credentials = null;     // { username, password } for the shared database
+  let session = { loggedIn: false, can: {} };
   let lastAction = 'Ready.';
+  let wired = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -40,15 +44,74 @@
     return response.text();
   }
 
-  // The C++ TextFileDataStore reads and writes these files in Emscripten's in-memory file system.
-  function writeDataFiles(vehiclesText, revenueText, historyText) {
-    engine.FS.writeFile(DATA_DIR + '/vehicles.txt', vehiclesText);
-    engine.FS.writeFile(DATA_DIR + '/revenue.txt', revenueText);
-    engine.FS.writeFile(DATA_DIR + '/history.txt', historyText);
+  // Builds a data bundle (the format of the C++ class DataFileFormat) from separate file texts.
+  function makeBundle(vehicles, revenue, history, users) {
+    const section = (name, text) => '--- ' + name + '\n' + (text || '').replace(/\r/g, '').replace(/\n*$/, '\n');
+    return 'CRMS-BUNDLE 1\n' + section('vehicles.txt', vehicles) + section('revenue.txt', revenue) +
+      section('history.txt', history) + section('users.txt', users);
   }
 
-  function readDataFile(name) {
-    try { return engine.FS.readFile(DATA_DIR + '/' + name, { encoding: 'utf8' }); } catch (error) { return ''; }
+  async function sampleBundle(vehiclesFile = 'data/vehicles.txt') {
+    const [vehicles, revenue, history] = await Promise.all([
+      fetchText(vehiclesFile), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
+    return makeBundle(vehicles, revenue, history, ''); // no users -> the C++ code creates the default accounts
+  }
+
+  // Data saved in this browser (also converts the format of older versions).
+  async function localBundle() {
+    const saved = storageGet(STORAGE_BUNDLE);
+    if (saved !== null) return saved;
+    const old = OLD_KEYS.map(storageGet);
+    if (old[0] !== null) return makeBundle(old[0], old[1], old[2], '');
+    return sampleBundle();
+  }
+
+  // ------------------------------------------------------- shared database --
+  async function detectMode() {
+    try {
+      const response = await fetch('api/status', { cache: 'no-store' });
+      if (!response.ok) return 'local';
+      const status = await response.json();
+      return status.configured ? 'online' : 'local';
+    } catch (error) {
+      return 'local';
+    }
+  }
+
+  function authHeader(user) {
+    const bytes = new TextEncoder().encode(user.username + ':' + user.password);
+    let binary = '';
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return 'Basic ' + btoa(binary);
+  }
+
+  async function readError(response) {
+    try { const json = await response.json(); return json.error || ('Error ' + response.status); } catch (error) { return 'Error ' + response.status; }
+  }
+
+  // GET /api/data -> { bundle, version }. Throws an Error with a user-friendly message.
+  async function downloadShared(user) {
+    const response = await fetch('api/data', { headers: { Authorization: authHeader(user) }, cache: 'no-store' });
+    if (response.status === 401) throw new Error('Incorrect user name or password.');
+    if (!response.ok) throw new Error('The shared online database is not available: ' + await readError(response));
+    return { bundle: await response.text(), version: response.headers.get('X-CRMS-Version') || '0' };
+  }
+
+  // PUT /api/data. Returns { ok, message }.
+  async function uploadShared(bundle) {
+    const response = await fetch('api/data', {
+      method: 'PUT',
+      headers: { Authorization: authHeader(credentials), 'Content-Type': 'text/plain; charset=utf-8', 'X-CRMS-Version': remoteVersion },
+      body: bundle,
+    });
+    if (response.ok) {
+      remoteVersion = response.headers.get('X-CRMS-Version') || String(Number(remoteVersion) + 1);
+      return { ok: true };
+    }
+    if (response.status === 409) {
+      return { ok: false, message: 'The shared data was changed by another user after you loaded it. Your changes were NOT saved. Use Reload to get the latest data, then repeat your changes.' };
+    }
+    return { ok: false, message: await readError(response) };
   }
 
   // Calls a C++ method that returns JSON and parses the result.
@@ -249,37 +312,45 @@
     });
   }
 
+  // Shows a C++ error inside a form: message box at the top, focus on the bad field
+  // (same behaviour as ModalDialog::handleOk() in the desktop program).
+  function showFormError(form, result) {
+    const errorBox = form.querySelector('.dlg-error');
+    errorBox.textContent = result.message;
+    errorBox.hidden = false;
+    form.querySelectorAll('.invalid').forEach((input) => input.classList.remove('invalid'));
+    const field = result.field ? form.elements[result.field] : null;
+    if (field && !field.readOnly) {
+      field.classList.add('invalid');
+      field.focus();
+      if (typeof field.select === 'function') field.select();
+    }
+  }
+
+  function clearFormError(form) {
+    const errorBox = form.querySelector('.dlg-error');
+    if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+    form.querySelectorAll('.invalid').forEach((input) => input.classList.remove('invalid'));
+  }
+
   function setupDialog(dialog, onOk) {
     const form = dialog.querySelector('form');
-    const errorBox = dialog.querySelector('.dlg-error');
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const result = onOk(form);
       if (result.ok) {
-        errorBox.hidden = true;
+        clearFormError(form);
         dialog.close('ok');
         return;
       }
-      // Same behaviour as ModalDialog::handleOk() in the desktop program: show the
-      // message, keep the dialog open and focus the field the C++ exception refers to.
-      errorBox.textContent = result.message;
-      errorBox.hidden = false;
-      form.querySelectorAll('.invalid').forEach((input) => input.classList.remove('invalid'));
-      const field = result.field ? form.elements[result.field] : null;
-      if (field && !field.readOnly) {
-        field.classList.add('invalid');
-        field.focus();
-        field.select();
-      }
+      showFormError(form, result);
     });
     dialog.querySelectorAll('[data-cancel]').forEach((button) =>
       button.addEventListener('click', () => dialog.close('cancel')));
   }
 
   function prepareDialog(dialog) {
-    const errorBox = dialog.querySelector('.dlg-error');
-    if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
-    dialog.querySelectorAll('.invalid').forEach((input) => input.classList.remove('invalid'));
+    clearFormError(dialog.querySelector('form'));
   }
 
   function fillDetails(list, pairs) {
@@ -321,6 +392,7 @@
   });
   const modelTable = new ReportTable('modelTable', { selectable: false, emptyText: 'No completed rentals yet.' });
   const topTable = new ReportTable('topTable', { selectable: false, emptyText: 'No completed rentals yet.' });
+  const usersTable = new ReportTable('usersTable', { onSelect: () => updateButtons(), emptyText: 'No accounts.' });
 
   let current = { vehicles: [], revenue: '0.00', total: 0, available: 0, rented: 0, modified: false };
   let historyRecords = [];
@@ -328,8 +400,10 @@
 
   // ---------------------------------------------------------------- refresh --
   function refreshAll() {
+    if (!session.loggedIn) return;
     current = call('state');
-    const stats = call('statistics'); // C++ RentalStatistics
+    const statsResult = call('statistics'); // C++ RentalStatistics (Managers only)
+    const stats = statsResult.ok ? statsResult : null;
     const byPlate = new Map(current.vehicles.map((vehicle) => [vehicle.plate, vehicle]));
 
     // Fleet (RentalAgency::searchFleet)
@@ -367,18 +441,20 @@
       : countText(plates.length, 'available vehicle matches', 'available vehicles match') + ' "' + query + '".';
 
     // Rentals & Returns
-    rentalsTable.setRows(current.vehicles.filter((vehicle) => vehicle.status === 'Rented').map((vehicle) => ({
+    const rented = current.vehicles.filter((vehicle) => vehicle.status === 'Rented');
+    rentalsTable.setRows(rented.map((vehicle) => ({
       key: vehicle.plate,
       cells: [
         { text: vehicle.plate, sort: vehicle.plate, strong: true },
         { text: vehicle.model, sort: vehicle.model },
         { text: vehicle.renter, sort: vehicle.renter },
         { text: vehicle.phone, sort: vehicle.phone },
+        { text: vehicle.startDate || '-', sort: vehicle.startDate || '' },
         { text: vehicle.agreed, sort: vehicle.agreedCents },
       ],
     })));
     $('revenueLabel').textContent = current.revenue;
-    $('dailyIncomeLabel').textContent = stats.activeDailyIncome;
+    $('dailyIncomeLabel').textContent = stats ? stats.activeDailyIncome : '–';
 
     // Rental History (RentalAgency::searchHistory)
     const historyQuery = $('historySearch').value.trim();
@@ -403,7 +479,8 @@
       : countText(history.count, 'match', 'matches')) + ' · ' + history.total;
 
     refreshDashboard(stats);
-    refreshReports(stats);
+    if (stats) refreshReports(stats);
+    if (session.can.manageUsers) refreshUsers();
 
     // Navigation counters, status bar, unsaved state
     $('navFleetCount').textContent = String(current.total);
@@ -420,20 +497,23 @@
   }
 
   function refreshDashboard(stats) {
-    $('kTotal').textContent = String(stats.vehicles);
+    const utilization = current.total > 0 ? Math.round((current.rented * 100) / current.total) : 0;
+    $('kTotal').textContent = String(current.total);
     $('kTotalNote').textContent = 'in the fleet';
-    $('kAvailable').textContent = String(stats.available);
-    $('kRented').textContent = String(stats.rented);
-    $('kUtilization').textContent = stats.utilization + '% of the fleet';
-    $('kRevenue').textContent = stats.revenue;
-    $('kRevenueNote').textContent = 'from ' + countText(stats.completedRentals, 'completed rental', 'completed rentals');
-    $('utilFill').style.width = stats.utilization + '%';
-    $('utilText').textContent = stats.utilization + '% rented · active rentals earn ' + stats.activeDailyIncome + ' per day';
-    $('utilMeter').setAttribute('aria-label', stats.utilization + ' percent of the fleet is rented');
+    $('kAvailable').textContent = String(current.available);
+    $('kRented').textContent = String(current.rented);
+    $('kUtilization').textContent = (stats ? stats.utilization : utilization) + '% of the fleet';
+    $('kRevenue').textContent = current.revenue;
+    const all = historyRecordsAll();
+    $('kRevenueNote').textContent = 'from ' + countText(all.length, 'completed rental', 'completed rentals');
+    const percent = stats ? stats.utilization : utilization;
+    $('utilFill').style.width = percent + '%';
+    $('utilText').textContent = percent + '% rented' + (stats ? ' · active rentals earn ' + stats.activeDailyIncome + ' per day' : '');
+    $('utilMeter').setAttribute('aria-label', percent + ' percent of the fleet is rented');
 
     const list = $('recentList');
     list.replaceChildren();
-    const recent = historyRecordsAll().slice(-5).reverse();
+    const recent = all.slice(-5).reverse();
     if (recent.length === 0) {
       const li = document.createElement('li');
       li.className = 'empty';
@@ -450,7 +530,7 @@
       const name = document.createElement('strong');
       name.textContent = record.renter;
       const detail = document.createElement('small');
-      detail.textContent = record.plate + ' · ' + record.model + ' · ' + record.days + (record.days === 1 ? ' day' : ' days') + ' · ' + record.returnedOn;
+      detail.textContent = record.plate + ' · ' + record.model + ' · ' + countText(record.days, 'day', 'days') + ' · ' + record.returnedOn;
       who.append(name, detail);
       const amount = document.createElement('span');
       amount.className = 'amount';
@@ -498,19 +578,52 @@
     })));
   }
 
+  function refreshUsers() {
+    const result = call('users');
+    if (!result.ok) return;
+    usersTable.setRows(result.users.map((user) => ({
+      key: user.username,
+      cells: [
+        { text: user.username + (user.username === session.username ? '  (you)' : ''), sort: user.username, strong: true },
+        { text: user.role, sort: user.role, badge: user.role === 'Manager' ? 'ok' : 'rent' },
+      ],
+    })));
+  }
+
   function updateButtons() {
+    const can = session.can || {};
     const fleetRow = fleetTable.selectedRow();
-    $('editBtn').disabled = !(fleetRow && fleetRow.available);
-    $('removeBtn').disabled = !(fleetRow && fleetRow.available);
-    $('rentBtn').disabled = !searchTable.selectedRow();
-    $('returnBtn').disabled = !rentalsTable.selectedRow();
+    $('addBtn').disabled = !can.manageFleet;
+    $('qaAdd').disabled = !can.manageFleet;
+    $('editBtn').disabled = !(can.manageFleet && fleetRow && fleetRow.available);
+    $('removeBtn').disabled = !(can.manageFleet && fleetRow && fleetRow.available);
+    $('rentBtn').disabled = !(can.rentAndReturn && searchTable.selectedRow());
+    $('returnBtn').disabled = !(can.rentAndReturn && rentalsTable.selectedRow());
     $('historyReceiptBtn').disabled = !historyTable.selectedRow();
+    const userRow = usersTable.selectedRow();
+    $('removeUserBtn').disabled = !userRow || userRow.key === session.username;
+    $('resetPasswordBtn').disabled = !userRow;
+  }
+
+  // Shows or hides everything marked data-permission="..." for the logged-in role.
+  function applyPermissions() {
+    const can = session.can || {};
+    document.querySelectorAll('[data-permission]').forEach((element) => {
+      element.hidden = !can[element.dataset.permission];
+    });
+    $('userName').textContent = session.username || '-';
+    $('userRole').textContent = session.role || '-';
+    $('userAvatar').textContent = (session.username || '?').slice(0, 2).toUpperCase();
+    const page = currentPage();
+    const navItem = document.querySelector('.nav-item[data-page="' + page + '"]');
+    if (navItem && navItem.hidden) selectPage('dashboard', { focus: false });
   }
 
   // -------------------------------------------------------------- use cases --
   let editingPlate = null; // null = add mode
 
   function openVehicleDialog(vehicle) {
+    if (!session.can.manageFleet) { reject('Access denied: only a Manager may add, edit or remove vehicles.'); return; }
     const dialog = $('vehicleDialog');
     const form = dialog.querySelector('form');
     prepareDialog(dialog);
@@ -550,6 +663,7 @@
   function editVehicle(plate) {
     const key = plate || fleetTable.selectedKey;
     if (!key) { setLastAction('Select a vehicle first.'); return; }
+    if (!session.can.manageFleet) { reject('Access denied: only a Manager may add, edit or remove vehicles.'); return; }
     const check = call('checkEditable', key); // the C++ logic refuses rented vehicles
     if (!check.ok) { reject(check.message); return; }
     openVehicleDialog(check.vehicle);
@@ -564,7 +678,7 @@
       'Its completed rentals stay in the rental history. Choose Save to make the change permanent.',
       'Remove vehicle');
     if (!ok) return;
-    const result = call('removeVehicle', row.key); // the C++ logic refuses rented vehicles
+    const result = call('removeVehicle', row.key); // the C++ logic checks the role and refuses rented vehicles
     if (!result.ok) { reject(result.message); return; }
     success('Removed vehicle ' + row.key + '.');
     refreshAll();
@@ -593,7 +707,7 @@
   setupDialog($('rentDialog'), (form) => {
     const result = call('rentVehicle', rentingPlate, form.elements.renter.value, form.elements.phone.value, form.elements.agreed.value);
     if (result.ok) {
-      success('Rented ' + rentingPlate + ' to ' + result.renter + '.');
+      success('Rented ' + rentingPlate + ' to ' + result.renter + '. The start date was recorded.');
       refreshAll();
     }
     return result;
@@ -616,15 +730,16 @@
     const check = call('checkReturnable', key);
     if (!check.ok) { reject(check.message); return; }
     const vehicle = check.vehicle;
+    const suggested = call('suggestedDays', key); // calculated by C++ from the rental start date
     const dialog = $('returnDialog');
     const form = dialog.querySelector('form');
     prepareDialog(dialog);
     returningPlate = vehicle.plate;
     fillDetails($('returnDetails'), [
       ['License plate', vehicle.plate], ['Model', vehicle.model], ['Renter', vehicle.renter],
-      ['Telephone', vehicle.phone], ['Agreed daily rate', vehicle.agreed],
+      ['Telephone', vehicle.phone], ['Rented since', vehicle.startDate || 'unknown'], ['Agreed daily rate', vehicle.agreed],
     ]);
-    form.elements.days.value = '1';
+    form.elements.days.value = String(suggested.ok ? suggested.days : 1);
     updatePreview();
     dialog.showModal();
     form.elements.days.focus();
@@ -666,14 +781,18 @@
     }
   })();
 
+  function receiptRows(receipt) {
+    const rows = [['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter], ['Telephone', receipt.phone]];
+    if (receipt.startedOn) rows.push(['Rented since', receipt.startedOn]);
+    rows.push(['Returned', receipt.returnedOn], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)]);
+    rows.push(['Total charge', receipt.rate + ' ' + TIMES + ' ' + receipt.days + ' = ' + receipt.total]);
+    return rows;
+  }
+
   function showReceipt(receipt, isCopy) {
     $('receiptTitle').textContent = isCopy ? 'Rental Receipt (copy)' : 'Rental Receipt';
     $('receiptMeta').textContent = 'Receipt no. ' + receipt.number + ' · returned ' + receipt.returnedOn;
-    fillDetails($('receiptDetails'), [
-      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
-      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
-      ['Total charge', receipt.rate + ' ' + TIMES + ' ' + receipt.days + ' = ' + receipt.total],
-    ]);
+    fillDetails($('receiptDetails'), receiptRows(receipt));
     lastReceipt = receipt;
     $('receiptDialog').showModal();
   }
@@ -688,12 +807,7 @@
   function printReceipt() {
     if (!lastReceipt) return;
     const receipt = lastReceipt;
-    const rows = [
-      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
-      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
-      ['TOTAL CHARGE', receipt.rate + ' ' + TIMES + ' ' + receipt.days + ' = ' + receipt.total],
-    ];
-    const win = window.open('', '_blank', 'width=480,height=600');
+    const win = window.open('', '_blank', 'width=480,height=640');
     if (!win) { showMessage('Print', 'Please allow pop-ups for this site to print the receipt.'); return; }
     const doc = win.document;
     doc.title = 'Rental Receipt ' + receipt.number;
@@ -707,7 +821,7 @@
     const sub = doc.createElement('p');
     sub.textContent = 'Rental receipt no. ' + receipt.number + ' – returned ' + receipt.returnedOn;
     const table = doc.createElement('table');
-    for (const [label, value] of rows) {
+    for (const [label, value] of receiptRows(receipt)) {
       const tr = table.insertRow();
       tr.insertCell().textContent = label;
       tr.insertCell().textContent = value;
@@ -717,40 +831,111 @@
     win.print();
   }
 
+  // ------------------------------------------------------------------ users --
+  const addUserForm = $('addUserForm');
+  addUserForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = addUserForm.elements.username.value;
+    const result = call('addUser', name, addUserForm.elements.password.value, addUserForm.elements.role.value);
+    if (!result.ok) { showFormError(addUserForm, result); return; }
+    clearFormError(addUserForm);
+    addUserForm.reset();
+    success('Account "' + name.trim().toLowerCase() + '" added. Save (Ctrl+S) to keep it.');
+    refreshAll();
+  });
+
+  async function removeUser() {
+    const row = usersTable.selectedRow();
+    if (!row) return;
+    const ok = await confirmAction('Delete account', 'Delete the account "' + row.key + '"?', 'Delete account');
+    if (!ok) return;
+    const result = call('removeUser', row.key); // C++: never yourself, never the last Manager
+    if (!result.ok) { reject(result.message); return; }
+    success('Account "' + row.key + '" deleted. Save (Ctrl+S) to keep the change.');
+    refreshAll();
+  }
+
+  let resettingUser = null;
+  function openResetPassword() {
+    const row = usersTable.selectedRow();
+    if (!row) return;
+    resettingUser = row.key;
+    const dialog = $('resetPasswordDialog');
+    prepareDialog(dialog);
+    $('resetPasswordFor').textContent = 'New password for "' + row.key + '":';
+    dialog.querySelector('form').elements.password.value = '';
+    dialog.showModal();
+    dialog.querySelector('form').elements.password.focus();
+  }
+  setupDialog($('resetPasswordDialog'), (form) => {
+    const result = call('resetPassword', resettingUser, form.elements.password.value);
+    if (result.ok) success('Password of "' + resettingUser + '" changed. Save (Ctrl+S) to keep it.');
+    refreshAll();
+    return result;
+  });
+
+  function openChangePassword() {
+    const dialog = $('passwordDialog');
+    const form = dialog.querySelector('form');
+    prepareDialog(dialog);
+    form.reset();
+    dialog.showModal();
+    form.elements.current.focus();
+  }
+  setupDialog($('passwordDialog'), (form) => {
+    if (form.elements.password.value !== form.elements.confirm.value) {
+      return { ok: false, field: 'confirm', message: 'The new password and its confirmation are different.' };
+    }
+    const result = call('changePassword', form.elements.current.value, form.elements.password.value);
+    if (!result.ok && result.field === 'password' && /current/i.test(result.message)) result.field = 'current';
+    if (result.ok) {
+      session = result;
+      if (credentials) credentials.password = form.elements.password.value;
+      success('Your password was changed. Save (Ctrl+S) to keep the change.');
+      refreshAll();
+    }
+    return result;
+  });
+
   // -------------------------------------------------------------- save/load --
-  function save() {
-    const result = call('save'); // TextFileDataStore::save() through IDataStore&
+  async function save() {
+    const result = call('saveBundle'); // C++: RentalAgency::saveTo(IDataStore&) -> BundleDataStore
     if (!result.ok) { reject('The data could not be saved. ' + result.message); return false; }
-    const stored = storageSet(STORAGE_VEHICLES, readDataFile('vehicles.txt')) &&
-                   storageSet(STORAGE_REVENUE, readDataFile('revenue.txt')) &&
-                   storageSet(STORAGE_HISTORY, readDataFile('history.txt'));
-    success(stored
-      ? 'Saved ' + countText(current.total, 'vehicle', 'vehicles') + ', revenue ' + current.revenue + ' and the rental history.'
-      : 'Saved for this session only (browser storage is unavailable).');
+    if (mode === 'online') {
+      const upload = await uploadShared(result.bundle);
+      if (!upload.ok) {
+        app.markUnsaved();
+        refreshAll();
+        reject(upload.message);
+        return false;
+      }
+      success('Saved to the shared online database (version ' + remoteVersion + ').');
+    } else {
+      const stored = storageSet(STORAGE_BUNDLE, result.bundle);
+      OLD_KEYS.forEach(storageRemove);
+      success(stored ? 'Saved ' + countText(current.total, 'vehicle', 'vehicles') + ', the revenue, the history and the user accounts.'
+                     : 'Saved for this session only (browser storage is unavailable).');
+    }
     refreshAll();
     return true;
   }
 
-  function loadFromFiles(vehiclesText, revenueText, historyText, sourceLabel) {
-    writeDataFiles(vehiclesText, revenueText, historyText);
-    const result = call('load'); // RentalAgency::loadFrom(IDataStore&)
-    if (!result.ok) { reject(result.message); return; }
-    [fleetTable, searchTable, rentalsTable, historyTable].forEach((table) => { table.selectedKey = null; });
-    refreshAll();
-    setLastAction('Loaded ' + countText(current.total, 'vehicle', 'vehicles') + ' from ' + sourceLabel + '.');
-    if (result.warnings.length > 0) {
-      const lines = result.warnings.map((warning) => '• ' + warning).join('\n');
-      showMessage('Some data was skipped',
-        countText(result.warnings.length, 'entry', 'entries') + ' in the data files could not be loaded and ' +
-        (result.warnings.length === 1 ? 'was' : 'were') + ' skipped:\n\n' + lines +
-        '\n\nAll other data was loaded normally. Saving will rewrite the files without the skipped lines.');
-    }
+  // Loads a bundle into the C++ engine and shows any skipped lines.
+  function loadBundle(bundle, sourceLabel) {
+    const result = call('loadBundle', bundle); // RentalAgency::loadFrom(IDataStore&)
+    if (!result.ok) throw new Error(result.message);
+    [fleetTable, searchTable, rentalsTable, historyTable, usersTable].forEach((table) => { table.selectedKey = null; });
+    setLastAction('Loaded the data from ' + sourceLabel + '.');
+    return result.warnings;
   }
 
-  async function loadSample() {
-    const [vehicles, revenue, history] = await Promise.all([
-      fetchText('data/vehicles.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
-    loadFromFiles(vehicles, revenue, history, 'the sample data');
+  function showLoadWarnings(warnings) {
+    if (!warnings || warnings.length === 0) return;
+    const lines = warnings.map((warning) => '• ' + warning).join('\n');
+    showMessage('Some data was skipped',
+      countText(warnings.length, 'entry', 'entries') + ' in the data could not be loaded and ' +
+      (warnings.length === 1 ? 'was' : 'were') + ' skipped:\n\n' + lines +
+      '\n\nAll other data was loaded normally. Saving will rewrite the data without the skipped lines.');
   }
 
   async function confirmDiscard() {
@@ -758,12 +943,106 @@
       confirmAction('Unsaved changes', 'You have unsaved changes. Discard them and continue?', 'Discard changes');
   }
 
+  async function reload() {
+    if (!(await confirmDiscard())) return;
+    try {
+      let warnings;
+      if (mode === 'online') {
+        const shared = await downloadShared(credentials);
+        remoteVersion = shared.version;
+        warnings = loadBundle(shared.bundle || await sampleBundle(), 'the shared online database');
+      } else {
+        warnings = loadBundle(await localBundle(), 'this browser');
+      }
+      session = call('session');
+      if (!session.loggedIn) { showLogin(); return; } // the account no longer exists
+      applyPermissions();
+      refreshAll();
+      success('Reloaded the latest data.');
+      showLoadWarnings(warnings);
+    } catch (error) {
+      reject(error.message);
+    }
+  }
+
+  // ------------------------------------------------------------------ login --
+  const loginForm = $('loginForm');
+
+  function showLogin() {
+    session = { loggedIn: false, can: {} };
+    $('loginScreen').hidden = false;
+    clearFormError(loginForm);
+    loginForm.elements.password.value = '';
+    loginForm.elements.username.focus();
+  }
+
+  loginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    clearFormError(loginForm);
+    const username = loginForm.elements.username.value.trim().toLowerCase();
+    const password = loginForm.elements.password.value;
+    $('loginButton').disabled = true;
+    try {
+      let warnings = [];
+      if (mode === 'online') {
+        // The server checks the account before it sends any data.
+        const shared = await downloadShared({ username, password });
+        remoteVersion = shared.version;
+        if (shared.bundle) {
+          warnings = loadBundle(shared.bundle, 'the shared online database');
+        } else {
+          warnings = loadBundle(await sampleBundle(), 'the sample data (the shared database is empty)');
+          app.markUnsaved(); // the first Save uploads it
+        }
+        credentials = { username, password };
+      }
+      const result = call('login', username, password); // C++ UserDirectory::authenticate
+      if (!result.ok) { showFormError(loginForm, { message: result.message, field: 'password' }); return; }
+      session = result;
+      $('loginScreen').hidden = true;
+      applyPermissions();
+      refreshAll();
+      setLastAction('Logged in as ' + session.username + ' (' + session.role + ').');
+      showLoadWarnings(warnings);
+      if (session.defaultPasswords && session.can.manageUsers) {
+        showMessage('Security reminder',
+          'The default accounts still use their default passwords (manager123 / clerk123).\n\n' +
+          'Please change them on the Users page and save.');
+      }
+    } catch (error) {
+      showFormError(loginForm, { message: error.message, field: 'password' });
+    } finally {
+      $('loginButton').disabled = false;
+    }
+  });
+
+  async function logout() {
+    $('userDropdown').hidden = true;
+    if (current.modified) {
+      const ok = await confirmAction('Log out', 'You have unsaved changes. Log out and discard them?', 'Discard and log out');
+      if (!ok) return;
+    }
+    call('logout');
+    credentials = null;
+    if (mode === 'local') {
+      try { loadBundle(await localBundle(), 'this browser'); } catch (error) { /* keep the current data */ }
+    }
+    current.modified = false;
+    showLogin();
+  }
+
   // ------------------------------------------------------------- navigation --
-  const pages = ['dashboard', 'fleet', 'search', 'rentals', 'history', 'reports'];
+  const pages = ['dashboard', 'fleet', 'search', 'rentals', 'history', 'reports', 'users'];
   const focusTargets = { fleet: 'fleetSearch', search: 'searchInput', history: 'historySearch' };
+
+  function currentPage() {
+    return pages.find((page) => !$('page-' + page).hidden) || 'dashboard';
+  }
 
   function selectPage(name, options = {}) {
     if (!pages.includes(name)) name = 'dashboard';
+    const navItem = document.querySelector('.nav-item[data-page="' + name + '"]');
+    if (navItem && navItem.hidden) name = 'dashboard'; // page not allowed for this role
     for (const page of pages) {
       $('page-' + page).hidden = page !== name;
     }
@@ -809,6 +1088,8 @@
 
   // ---------------------------------------------------------- wire-up events --
   function wireEvents() {
+    if (wired) return;
+    wired = true;
     document.querySelectorAll('.nav-item').forEach((item) =>
       item.addEventListener('click', () => selectPage(item.dataset.page)));
     document.querySelectorAll('[data-goto]').forEach((item) =>
@@ -824,6 +1105,19 @@
     $('returnBtn').addEventListener('click', () => returnVehicle());
     $('historyReceiptBtn').addEventListener('click', () => showHistoryReceipt());
     $('printReceiptBtn').addEventListener('click', () => printReceipt());
+    $('removeUserBtn').addEventListener('click', () => removeUser());
+    $('resetPasswordBtn').addEventListener('click', () => openResetPassword());
+
+    $('userChip').addEventListener('click', () => {
+      const dropdown = $('userDropdown');
+      dropdown.hidden = !dropdown.hidden;
+      $('userChip').setAttribute('aria-expanded', dropdown.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.user-menu')) $('userDropdown').hidden = true;
+    });
+    $('changePasswordBtn').addEventListener('click', () => { $('userDropdown').hidden = true; openChangePassword(); });
+    $('logoutBtn').addEventListener('click', () => logout());
 
     $('fleetSearch').addEventListener('input', () => refreshAll());
     $('searchInput').addEventListener('input', () => refreshAll());
@@ -835,68 +1129,84 @@
       refreshAll();
     }));
     $('fleetTable').addEventListener('keydown', (event) => {
-      if (event.key === 'Delete' && fleetTable.selectedRow()) { event.preventDefault(); removeVehicle(); }
+      if (event.key === 'Delete' && fleetTable.selectedRow() && session.can.manageFleet) { event.preventDefault(); removeVehicle(); }
     });
 
     $('saveBtn').addEventListener('click', () => save());
+    $('reloadBtn').addEventListener('click', () => reload());
     $('selfTestBtn').addEventListener('click', () => runSelfTest());
     $('errorsBtn').addEventListener('click', async () => {
       if (!(await confirmDiscard())) return;
-      const [vehicles, revenue, history] = await Promise.all([
-        fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
-      loadFromFiles(vehicles, revenue, history, 'vehicles_with_errors.txt (not saved until you choose Save)');
-      selectPage('fleet', { focus: false });
+      try {
+        const bundle = await sampleBundle('data/vehicles_with_errors.txt');
+        const keepUsers = call('saveBundle'); // keep the current accounts
+        const users = keepUsers.ok ? keepUsers.bundle.split('--- users.txt')[1] || '' : '';
+        const warnings = loadBundle(bundle.replace(/--- users\.txt\n[\s\S]*$/, '--- users.txt\n' + users.replace(/^\r?\n/, '')),
+          'vehicles_with_errors.txt (not saved until you choose Save)');
+        refreshAll(); // the C++ code keeps the current login when data is reloaded
+        selectPage('fleet', { focus: false });
+        showLoadWarnings(warnings);
+      } catch (error) {
+        reject(error.message);
+      }
     });
     $('resetBtn').addEventListener('click', async () => {
       const ok = await confirmAction('Reset sample data',
-        'Replace all vehicles, the revenue and the rental history with the original sample data? ' +
-        'Your saved data in this browser will be deleted.', 'Reset sample data');
+        'Replace all vehicles, the revenue and the rental history with the original sample data?' +
+        (mode === 'online' ? ' The change is uploaded to the shared database when you choose Save.' : ' Your saved data in this browser will be replaced when you choose Save.'),
+        'Reset sample data');
       if (!ok) return;
-      storageRemove(STORAGE_VEHICLES);
-      storageRemove(STORAGE_REVENUE);
-      storageRemove(STORAGE_HISTORY);
-      await loadSample();
-      success('Sample data restored.');
+      const keepUsers = call('saveBundle');
+      const users = keepUsers.ok ? keepUsers.bundle.split('--- users.txt')[1] || '' : '';
+      const sample = await sampleBundle();
+      loadBundle(sample.replace(/--- users\.txt\n[\s\S]*$/, '--- users.txt\n' + users.replace(/^\r?\n/, '')), 'the sample data');
+      app.markUnsaved();
+      refreshAll();
+      success('Sample data restored (user accounts kept). Choose Save to keep it.');
     });
 
     document.addEventListener('keydown', (event) => {
-      if (!(event.ctrlKey || event.metaKey) || !app) return;
+      if (!(event.ctrlKey || event.metaKey) || !session.loggedIn) return;
       const key = event.key.toLowerCase();
       if (key === 's') { event.preventDefault(); save(); }
       if (key === 'f') { event.preventDefault(); selectPage('search'); $('searchInput').select(); }
     });
     window.addEventListener('hashchange', () => selectPage(location.hash.slice(1), { focus: false }));
     window.addEventListener('beforeunload', (event) => {
-      if (current.modified) { event.preventDefault(); event.returnValue = ''; }
+      if (session.loggedIn && current.modified) { event.preventDefault(); event.returnValue = ''; }
     });
-  }
-
-  function setControlsEnabled(enabled) {
-    document.querySelectorAll('#app button, #app input').forEach((control) => { control.disabled = !enabled; });
   }
 
   // ------------------------------------------------------------------- start --
   async function start() {
     selectPage(location.hash.slice(1) || 'dashboard', { focus: false });
-    setControlsEnabled(false);
     try {
       if (typeof window.createRentalModule !== 'function') throw new Error('rental_core.js was not loaded.');
       engine = await window.createRentalModule();
-      engine.FS.mkdirTree(DATA_DIR);
       app = new engine.WebApp();
-      setControlsEnabled(true);
       wireEvents();
       $('engineStatus').textContent = 'C++ engine: WebAssembly';
       $('engineStatus').classList.add('ready');
-      const savedVehicles = storageGet(STORAGE_VEHICLES);
-      if (savedVehicles !== null) {
-        loadFromFiles(savedVehicles, storageGet(STORAGE_REVENUE) || '', storageGet(STORAGE_HISTORY) || '', 'your saved data');
+
+      mode = await detectMode();
+      $('storageMode').textContent = mode === 'online' ? 'Shared online database' : 'Saved in this browser';
+      $('storageMode').classList.toggle('online', mode === 'online');
+      $('reloadBtn').hidden = mode !== 'online';
+      if (mode === 'online') {
+        $('loginMode').textContent = 'Shared online database - everybody works with the same data.';
+        $('loginHint').textContent = 'First start: sign in with manager / manager123 (Manager) or clerk / clerk123 (Clerk), then change the passwords.';
       } else {
-        await loadSample();
+        const warnings = loadBundle(await localBundle(), 'this browser');
+        $('loginMode').textContent = 'Data saved in this browser.';
+        $('loginHint').textContent = 'Default accounts: manager / manager123 (Manager) and clerk / clerk123 (Clerk). Change the passwords after signing in.';
+        if (warnings.length) setTimeout(() => showLoadWarnings(warnings), 0);
       }
+      $('loginButton').disabled = false;
+      showLogin();
     } catch (error) {
       $('engineStatus').textContent = 'The system could not be started: ' + error.message;
       $('engineStatus').classList.add('failed');
+      $('loginMode').textContent = 'The system could not be started: ' + error.message;
     }
   }
 

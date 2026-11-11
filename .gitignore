@@ -14,3 +14,6 @@ web/dist/
 .emsdk/
 .vercel/
 .playwright-mcp/
+
+# NuGet packages restored by Visual Studio (GoogleTest)
+packages/
