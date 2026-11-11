@@ -1,0 +1,10 @@
+# Visual Studio build output
+.vs/
+x64/
+Debug/
+Release/
+*.user
+*.aps
+CarRentalSystem/x64/
+CarRentalSystem/Debug/
+CarRentalSystem/Release/

@@ -1,0 +1,8 @@
+ABC-123|Toyota Corolla|150.00|Available|||
+COR-202|Toyota Corolla|155.00|Rented|John Smith|+1 555-0100|140.00
+CAM-330|Toyota Camry|180.00|Available|||
+HON-111|Honda Civic|140.00|Available|||
+HON-222|Honda Civic|145.50|Rented|Maria Garcia|0912-345-678|145.50
+FOR-333|Ford Focus|120.00|Available|||
+BMW-520|BMW 520i|350.00|Rented|David Lee|+44 20 7946 0958|320.00
+TES-003|Tesla Model 3|275.00|Available|||

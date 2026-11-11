@@ -1,0 +1,151 @@
+// =============================================================================
+// CarRental.rc - resources: menu, accelerators, dialog templates, version info.
+// Hand-written; it does not need MFC/ATL (no "winres.h").
+// Dialogs use "Segoe UI" 9 pt; Windows scales them automatically for the DPI.
+// =============================================================================
+#include "Resource.h"
+#include <windows.h>
+#include <commctrl.h>
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+// -----------------------------------------------------------------------------
+// Menu
+// -----------------------------------------------------------------------------
+IDR_MAINMENU MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&Save\tCtrl+S",                       ID_FILE_SAVE
+        MENUITEM SEPARATOR
+        MENUITEM "E&xit\tAlt+F4",                       ID_FILE_EXIT
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "&Run Business Rule Self-Test",         ID_HELP_SELFTEST
+        MENUITEM SEPARATOR
+        MENUITEM "&About...",                           ID_HELP_ABOUT
+    END
+END
+
+// -----------------------------------------------------------------------------
+// Keyboard accelerators
+// -----------------------------------------------------------------------------
+IDR_ACCELERATORS ACCELERATORS
+BEGIN
+    "S",        ID_FILE_SAVE,   VIRTKEY, CONTROL, NOINVERT
+    "F",        ID_FIND,        VIRTKEY, CONTROL, NOINVERT
+    VK_TAB,     ID_NEXT_TAB,    VIRTKEY, CONTROL, NOINVERT
+    VK_TAB,     ID_PREV_TAB,    VIRTKEY, CONTROL, SHIFT, NOINVERT
+END
+
+// -----------------------------------------------------------------------------
+// Add / Edit Vehicle dialog
+// -----------------------------------------------------------------------------
+IDD_VEHICLE DIALOGEX 0, 0, 270, 118
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Vehicle"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "License &plate:", IDC_STATIC, 10, 12, 80, 8
+    EDITTEXT        IDC_PLATE_EDIT, 95, 10, 165, 14, ES_AUTOHSCROLL
+    LTEXT           "Letters A-Z, digits 0-9 and '-' only, e.g. ABC-123.", IDC_PLATE_HINT, 95, 27, 165, 8
+    LTEXT           "&Model:", IDC_STATIC, 10, 44, 80, 8
+    EDITTEXT        IDC_MODEL_EDIT, 95, 42, 165, 14, ES_AUTOHSCROLL
+    LTEXT           "&Daily rate:", IDC_STATIC, 10, 64, 80, 8
+    EDITTEXT        IDC_RATE_EDIT, 95, 62, 70, 14, ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "e.g. 150 or 149.99", IDC_STATIC, 172, 64, 90, 8
+    DEFPUSHBUTTON   "OK", IDOK, 156, 94, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 210, 94, 50, 14
+END
+
+// -----------------------------------------------------------------------------
+// Rent Vehicle dialog
+// -----------------------------------------------------------------------------
+IDD_RENT DIALOGEX 0, 0, 280, 178
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Rent Vehicle"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Vehicle", IDC_STATIC, 7, 6, 266, 62
+    LTEXT           "License plate:", IDC_STATIC, 16, 20, 80, 8
+    EDITTEXT        IDC_RENT_PLATE, 100, 18, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
+    LTEXT           "Model:", IDC_STATIC, 16, 35, 80, 8
+    EDITTEXT        IDC_RENT_MODEL, 100, 33, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
+    LTEXT           "Current daily rate:", IDC_STATIC, 16, 50, 80, 8
+    EDITTEXT        IDC_RENT_CURRENT_RATE, 100, 48, 70, 13, ES_AUTOHSCROLL | ES_READONLY | ES_RIGHT | NOT WS_TABSTOP
+
+    GROUPBOX        "Renter", IDC_STATIC, 7, 74, 266, 74
+    LTEXT           "Renter &name:", IDC_STATIC, 16, 90, 80, 8
+    EDITTEXT        IDC_RENTER_NAME, 100, 88, 164, 14, ES_AUTOHSCROLL
+    LTEXT           "&Telephone:", IDC_STATIC, 16, 109, 80, 8
+    EDITTEXT        IDC_RENTER_PHONE, 100, 107, 164, 14, ES_AUTOHSCROLL
+    LTEXT           "&Agreed daily rate:", IDC_STATIC, 16, 128, 80, 8
+    EDITTEXT        IDC_AGREED_RATE, 100, 126, 70, 14, ES_AUTOHSCROLL | ES_RIGHT
+    LTEXT           "pre-filled, may be changed", IDC_STATIC, 176, 128, 92, 8
+
+    DEFPUSHBUTTON   "OK", IDOK, 166, 156, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 222, 156, 50, 14
+END
+
+// -----------------------------------------------------------------------------
+// Return Vehicle dialog
+// -----------------------------------------------------------------------------
+IDD_RETURN DIALOGEX 0, 0, 280, 196
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Return Vehicle"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Rental details", IDC_STATIC, 7, 6, 266, 92
+    LTEXT           "License plate:", IDC_STATIC, 16, 20, 80, 8
+    EDITTEXT        IDC_RET_PLATE, 100, 18, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
+    LTEXT           "Model:", IDC_STATIC, 16, 35, 80, 8
+    EDITTEXT        IDC_RET_MODEL, 100, 33, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
+    LTEXT           "Renter:", IDC_STATIC, 16, 50, 80, 8
+    EDITTEXT        IDC_RET_RENTER, 100, 48, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
+    LTEXT           "Telephone:", IDC_STATIC, 16, 65, 80, 8
+    EDITTEXT        IDC_RET_PHONE, 100, 63, 164, 13, ES_AUTOHSCROLL | ES_READONLY | NOT WS_TABSTOP
+    LTEXT           "Agreed daily rate:", IDC_STATIC, 16, 80, 80, 8
+    EDITTEXT        IDC_RET_RATE, 100, 78, 70, 13, ES_AUTOHSCROLL | ES_READONLY | ES_RIGHT | NOT WS_TABSTOP
+
+    LTEXT           "Rental &days:", IDC_STATIC, 16, 112, 80, 8
+    EDITTEXT        IDC_DAYS_EDIT, 100, 110, 50, 14, ES_AUTOHSCROLL | ES_NUMBER | ES_RIGHT
+    CONTROL         "", IDC_DAYS_SPIN, "msctls_updown32",
+                    UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,
+                    150, 110, 10, 14
+    LTEXT           "whole days, 1 to 3650", IDC_STATIC, 166, 112, 100, 8
+    LTEXT           "", IDC_CHARGE_PREVIEW, 16, 134, 252, 12, SS_NOPREFIX
+
+    DEFPUSHBUTTON   "OK", IDOK, 166, 174, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 222, 174, 50, 14
+END
+
+// -----------------------------------------------------------------------------
+// Version information (shown in the .exe's Properties > Details)
+// -----------------------------------------------------------------------------
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "Car Rental Management System"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "CarRentalSystem"
+            VALUE "OriginalFilename", "CarRentalSystem.exe"
+            VALUE "ProductName", "Car Rental Management System"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

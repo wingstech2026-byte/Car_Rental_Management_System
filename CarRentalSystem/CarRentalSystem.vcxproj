@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{7C1F3E52-8A4B-4D2E-9F61-3B5A2C8D1E47}</ProjectGuid>
+    <RootNamespace>CarRentalSystem</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+
+  <!-- Settings shared by all configurations -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Message>Copying sample data files next to the executable (only if they are not there yet)</Message>
+      <Command>if not exist "$(OutDir)vehicles.txt" copy /Y "$(ProjectDir)data\vehicles.txt" "$(OutDir)vehicles.txt" &gt;nul
+if not exist "$(OutDir)revenue.txt" copy /Y "$(ProjectDir)data\revenue.txt" "$(OutDir)revenue.txt" &gt;nul
+exit /b 0</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Platform)'=='Win32'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <!-- Business logic -->
+  <ItemGroup>
+    <ClInclude Include="Money.h" />
+    <ClInclude Include="Renter.h" />
+    <ClInclude Include="Rental.h" />
+    <ClInclude Include="Receipt.h" />
+    <ClInclude Include="Vehicle.h" />
+    <ClInclude Include="RentalAgency.h" />
+    <ClInclude Include="RentalExceptions.h" />
+    <ClInclude Include="Validation.h" />
+    <ClInclude Include="TextUtils.h" />
+    <ClInclude Include="BusinessRuleSelfTest.h" />
+    <ClInclude Include="IDataStore.h" />
+    <ClInclude Include="TextFileDataStore.h" />
+    <ClInclude Include="InMemoryDataStore.h" />
+    <ClInclude Include="Win32Include.h" />
+    <ClInclude Include="GuiUtils.h" />
+    <ClInclude Include="ReportListView.h" />
+    <ClInclude Include="ModalDialog.h" />
+    <ClInclude Include="AddEditVehicleDialog.h" />
+    <ClInclude Include="RentDialog.h" />
+    <ClInclude Include="ReturnDialog.h" />
+    <ClInclude Include="MainWindow.h" />
+    <ClInclude Include="Resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Money.cpp" />
+    <ClCompile Include="Renter.cpp" />
+    <ClCompile Include="Rental.cpp" />
+    <ClCompile Include="Receipt.cpp" />
+    <ClCompile Include="Vehicle.cpp" />
+    <ClCompile Include="RentalAgency.cpp" />
+    <ClCompile Include="RentalExceptions.cpp" />
+    <ClCompile Include="Validation.cpp" />
+    <ClCompile Include="TextUtils.cpp" />
+    <ClCompile Include="BusinessRuleSelfTest.cpp" />
+    <ClCompile Include="IDataStore.cpp" />
+    <ClCompile Include="TextFileDataStore.cpp" />
+    <ClCompile Include="InMemoryDataStore.cpp" />
+    <ClCompile Include="GuiUtils.cpp" />
+    <ClCompile Include="ReportListView.cpp" />
+    <ClCompile Include="ModalDialog.cpp" />
+    <ClCompile Include="AddEditVehicleDialog.cpp" />
+    <ClCompile Include="RentDialog.cpp" />
+    <ClCompile Include="ReturnDialog.cpp" />
+    <ClCompile Include="MainWindow.cpp" />
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="CarRental.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\vehicles.txt" />
+    <None Include="data\revenue.txt" />
+    <None Include="data\vehicles_with_errors.txt" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

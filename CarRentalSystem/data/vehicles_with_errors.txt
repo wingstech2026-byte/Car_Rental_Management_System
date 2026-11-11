@@ -1,0 +1,12 @@
+ABC-123|Toyota Corolla|150.00|Available|||
+abc-123|Toyota Corolla|160.00|Available|||
+BAD PLATE|Honda Civic|100.00|Available|||
+NEW-001|Kia Rio|-20.00|Available|||
+NEW-002|Kia Rio|99.999|Available|||
+NEW-003|Kia Rio|80.00|Rented|||
+NEW-004|Kia Rio|80.00
+NEW-005||80.00|Available|||
+NEW-006|Kia Rio|80.00|Rented|Ann Lee|12ab34|80.00
+NEW-007|Kia Picanto|0|Available|||
+NEW-008|Kia Rio|80.00|Lost|||
+NEW-009|Hyundai i20|95.00|Available|||
