@@ -3,9 +3,10 @@
  * -----------------------------------------------------------------------------
  * This file contains NO business rules. Every operation is a call into the
  * C++ class WebApp (web/wasm/WebBindings.cpp), which uses the same C++
- * RentalAgency, Vehicle, Money, Validation and TextFileDataStore classes as the
- * desktop program, compiled to WebAssembly. This file only draws the screen,
- * like MainWindow and the dialogs do in the Win32 version.
+ * RentalAgency, Vehicle, Money, Validation, RentalStatistics and
+ * TextFileDataStore classes as the desktop program, compiled to WebAssembly.
+ * This file only draws the screen, like MainWindow and the dialogs do in the
+ * Win32 version.
  * ========================================================================== */
 'use strict';
 
@@ -14,6 +15,7 @@
   const STORAGE_REVENUE = 'crms.revenue.txt';
   const STORAGE_HISTORY = 'crms.history.txt';
   const DATA_DIR = '/data';
+  const TIMES = '×';
 
   let engine = null;   // the compiled C++ module
   let app = null;      // C++ WebApp instance
@@ -38,7 +40,7 @@
     return response.text();
   }
 
-  // Write the two data files into the C++ program's (in-memory) file system.
+  // The C++ TextFileDataStore reads and writes these files in Emscripten's in-memory file system.
   function writeDataFiles(vehiclesText, revenueText, historyText) {
     engine.FS.writeFile(DATA_DIR + '/vehicles.txt', vehiclesText);
     engine.FS.writeFile(DATA_DIR + '/revenue.txt', revenueText);
@@ -54,7 +56,7 @@
     return JSON.parse(app[method](...args));
   }
 
-  // ------------------------------------------------------------- formatting --
+  // ------------------------------------------------------------- feedback --
   function countText(count, singular, plural) {
     return count + ' ' + (count === 1 ? singular : plural);
   }
@@ -64,9 +66,25 @@
     $('sbAction').textContent = lastAction;
   }
 
+  let toastTimer = null;
+  function showToast(text) {
+    const toast = $('toast');
+    toast.textContent = text;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.hidden = true; }, 3200);
+  }
+
+  function success(text) {
+    setLastAction(text);
+    showToast(text);
+  }
+
   // ------------------------------------------------------------------ table --
+  // Sortable, selectable table. A cell is { text, sort } and may also have
+  // badge ('ok' | 'rent'), bar (0-100) or strong (true).
   class ReportTable {
-    constructor(tableId, options) {
+    constructor(tableId, options = {}) {
       this.table = $(tableId);
       this.body = this.table.tBodies[0];
       this.columns = Array.from(this.table.tHead.rows[0].cells);
@@ -74,14 +92,14 @@
       this.selectedKey = null;
       this.sortColumn = -1;
       this.ascending = true;
+      this.selectable = options.selectable !== false;
       this.onSelect = options.onSelect || (() => {});
-      this.onActivate = options.onActivate || (() => {});
-      this.emptyText = options.emptyText || 'No vehicles.';
+      this.onActivate = options.onActivate || null;
+      this.emptyText = options.emptyText || 'Nothing to show.';
 
       this.table.tabIndex = 0;
       this.columns.forEach((th, index) => {
         th.tabIndex = 0;
-        th.setAttribute('role', 'columnheader');
         th.addEventListener('click', () => this.sortBy(index));
         th.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); this.sortBy(index); }
@@ -89,11 +107,11 @@
       });
       this.body.addEventListener('click', (event) => {
         const tr = event.target.closest('tr[data-key]');
-        if (tr) this.select(tr.dataset.key);
+        if (tr && this.selectable) this.select(tr.dataset.key);
       });
       this.body.addEventListener('dblclick', (event) => {
         const tr = event.target.closest('tr[data-key]');
-        if (tr) { this.select(tr.dataset.key); this.onActivate(tr.dataset.key); }
+        if (tr && this.onActivate) { this.select(tr.dataset.key); this.onActivate(tr.dataset.key); }
       });
       this.table.addEventListener('keydown', (event) => this.handleKey(event));
     }
@@ -122,6 +140,30 @@
       });
     }
 
+    renderCell(cell, index) {
+      const td = document.createElement('td');
+      if (this.columns[index].classList.contains('num')) td.className = 'num';
+      if (cell.strong) td.classList.add('strong');
+      if (cell.badge) {
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-' + cell.badge;
+        badge.textContent = cell.text;
+        td.appendChild(badge);
+      } else if (typeof cell.bar === 'number') {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        const fill = document.createElement('i');
+        fill.style.width = Math.max(2, Math.round(cell.bar)) + '%';
+        const label = document.createElement('span');
+        label.textContent = cell.text;
+        bar.append(fill, label);
+        td.appendChild(bar);
+      } else {
+        td.textContent = cell.text;
+      }
+      return td;
+    }
+
     render() {
       this.columns.forEach((th, index) => {
         th.removeAttribute('aria-sort');
@@ -131,7 +173,6 @@
           th.classList.add(this.ascending ? 'sort-asc' : 'sort-desc');
         }
       });
-
       this.body.replaceChildren();
       const rows = this.sortedRows();
       if (rows.length === 0) {
@@ -142,6 +183,7 @@
         td.textContent = this.emptyText;
         tr.appendChild(td);
         this.body.appendChild(tr);
+        return;
       }
       for (const row of rows) {
         const tr = document.createElement('tr');
@@ -149,12 +191,7 @@
         if (row.className) tr.className = row.className;
         if (row.key === this.selectedKey) tr.classList.add('selected');
         tr.setAttribute('aria-selected', row.key === this.selectedKey ? 'true' : 'false');
-        row.cells.forEach((cell, index) => {
-          const td = document.createElement('td');
-          td.textContent = cell.text;
-          if (this.columns[index].classList.contains('num')) td.className = 'num';
-          tr.appendChild(td);
-        });
+        row.cells.forEach((cell, index) => tr.appendChild(this.renderCell(cell, index)));
         this.body.appendChild(tr);
       }
     }
@@ -175,7 +212,7 @@
     }
 
     handleKey(event) {
-      if (event.target !== this.table) return;
+      if (event.target !== this.table || !this.selectable) return;
       const rows = this.sortedRows();
       if (rows.length === 0) return;
       const index = rows.findIndex((row) => row.key === this.selectedKey);
@@ -185,7 +222,7 @@
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         this.select(rows[Math.max(0, index - 1)].key);
-      } else if (event.key === 'Enter' && this.selectedKey) {
+      } else if (event.key === 'Enter' && this.selectedKey && this.onActivate) {
         event.preventDefault();
         this.onActivate(this.selectedKey);
       }
@@ -199,7 +236,6 @@
     $('messageDialog').showModal();
   }
 
-  // Asks a yes/no question in the application's own style. Resolves to true for OK.
   function confirmAction(title, text, okLabel) {
     return new Promise((resolve) => {
       const dialog = $('confirmDialog');
@@ -224,8 +260,8 @@
         dialog.close('ok');
         return;
       }
-      // Same behaviour as ModalDialog::handleOk(): show the message, keep the
-      // dialog open and focus the field the C++ ValidationException refers to.
+      // Same behaviour as ModalDialog::handleOk() in the desktop program: show the
+      // message, keep the dialog open and focus the field the C++ exception refers to.
       errorBox.textContent = result.message;
       errorBox.hidden = false;
       form.querySelectorAll('.invalid').forEach((input) => input.classList.remove('invalid'));
@@ -257,75 +293,94 @@
     }
   }
 
-  // ------------------------------------------------------------------ state --
+  function reject(message) {
+    setLastAction('Rejected: ' + message);
+    showMessage('Car Rental Management System', message);
+  }
+
+  // ----------------------------------------------------------------- tables --
   const fleetTable = new ReportTable('fleetTable', {
     onSelect: () => updateButtons(),
     onActivate: (key) => editVehicle(key),
-    emptyText: 'The fleet is empty. Click "Add Vehicle..." to add one.',
+    emptyText: 'No vehicles match. Change the search or the filter, or add a vehicle.',
   });
   const searchTable = new ReportTable('searchTable', {
     onSelect: () => updateButtons(),
     onActivate: (key) => rentVehicle(key),
-    emptyText: 'No available vehicle matches.',
+    emptyText: 'No available vehicle matches this model.',
+  });
+  const rentalsTable = new ReportTable('rentalsTable', {
+    onSelect: () => updateButtons(),
+    onActivate: (key) => returnVehicle(key),
+    emptyText: 'No vehicles are rented at the moment.',
   });
   const historyTable = new ReportTable('historyTable', {
     onSelect: () => updateButtons(),
     onActivate: (key) => showHistoryReceipt(key),
     emptyText: 'No completed rentals yet. Returned vehicles are archived here.',
   });
-  let historyRecords = [];
-
-  const rentalsTable = new ReportTable('rentalsTable', {
-    onSelect: () => updateButtons(),
-    onActivate: (key) => returnVehicle(key),
-    emptyText: 'No vehicles are rented at the moment.',
-  });
+  const modelTable = new ReportTable('modelTable', { selectable: false, emptyText: 'No completed rentals yet.' });
+  const topTable = new ReportTable('topTable', { selectable: false, emptyText: 'No completed rentals yet.' });
 
   let current = { vehicles: [], revenue: '0.00', total: 0, available: 0, rented: 0, modified: false };
+  let historyRecords = [];
+  let fleetFilter = 'all';
 
+  // ---------------------------------------------------------------- refresh --
   function refreshAll() {
     current = call('state');
+    const stats = call('statistics'); // C++ RentalStatistics
     const byPlate = new Map(current.vehicles.map((vehicle) => [vehicle.plate, vehicle]));
 
-    fleetTable.setRows(current.vehicles.map((vehicle) => ({
-      key: vehicle.plate,
-      className: vehicle.status === 'Available' ? 'row-ok' : 'row-rent',
-      available: vehicle.status === 'Available',
-      cells: [
-        { text: vehicle.plate, sort: vehicle.plate },
-        { text: vehicle.model, sort: vehicle.model },
-        { text: vehicle.rate, sort: vehicle.rateCents },
-        { text: vehicle.status, sort: vehicle.status },
-      ],
-    })));
+    // Fleet (RentalAgency::searchFleet)
+    const fleetQuery = $('fleetSearch').value.trim();
+    const fleetPlates = call('fleet', fleetQuery, fleetFilter).plates;
+    fleetTable.setRows(fleetPlates.map((plate) => byPlate.get(plate)).map((vehicle) => {
+      const available = vehicle.status === 'Available';
+      return {
+        key: vehicle.plate,
+        className: available ? 'row-ok' : 'row-rent',
+        available,
+        cells: [
+          { text: vehicle.plate, sort: vehicle.plate, strong: true },
+          { text: vehicle.model, sort: vehicle.model },
+          { text: vehicle.rate, sort: vehicle.rateCents },
+          { text: vehicle.status, sort: vehicle.status, badge: available ? 'ok' : 'rent' },
+        ],
+      };
+    }));
+    $('fleetCount').textContent = 'Showing ' + fleetPlates.length + ' of ' + countText(current.total, 'vehicle', 'vehicles') + '.';
 
+    // Search & Rent (RentalAgency::searchAvailableByModel)
     const query = $('searchInput').value.trim();
     const plates = call('search', query).plates;
     searchTable.setRows(plates.map((plate) => byPlate.get(plate)).map((vehicle) => ({
       key: vehicle.plate,
       cells: [
-        { text: vehicle.plate, sort: vehicle.plate },
+        { text: vehicle.plate, sort: vehicle.plate, strong: true },
         { text: vehicle.model, sort: vehicle.model },
         { text: vehicle.rate, sort: vehicle.rateCents },
       ],
     })));
     $('searchCount').textContent = query === ''
-      ? countText(plates.length, 'available vehicle', 'available vehicles') + ' (type to filter by model).'
+      ? countText(plates.length, 'available vehicle', 'available vehicles') + '. Type to filter by model.'
       : countText(plates.length, 'available vehicle matches', 'available vehicles match') + ' "' + query + '".';
 
+    // Rentals & Returns
     rentalsTable.setRows(current.vehicles.filter((vehicle) => vehicle.status === 'Rented').map((vehicle) => ({
       key: vehicle.plate,
       cells: [
-        { text: vehicle.plate, sort: vehicle.plate },
+        { text: vehicle.plate, sort: vehicle.plate, strong: true },
         { text: vehicle.model, sort: vehicle.model },
         { text: vehicle.renter, sort: vehicle.renter },
         { text: vehicle.phone, sort: vehicle.phone },
         { text: vehicle.agreed, sort: vehicle.agreedCents },
       ],
     })));
-    $('revenueLabel').textContent = 'Cumulative Rental Revenue: ' + current.revenue;
+    $('revenueLabel').textContent = current.revenue;
+    $('dailyIncomeLabel').textContent = stats.activeDailyIncome;
 
-    // Rental History tab (RentalAgency::searchHistory in C++)
+    // Rental History (RentalAgency::searchHistory)
     const historyQuery = $('historySearch').value.trim();
     const history = call('history', historyQuery);
     historyRecords = history.records;
@@ -334,41 +389,122 @@
       cells: [
         { text: String(record.number), sort: record.number },
         { text: record.returnedOn, sort: record.returnedOn },
-        { text: record.plate, sort: record.plate },
+        { text: record.plate, sort: record.plate, strong: true },
         { text: record.model, sort: record.model },
         { text: record.renter, sort: record.renter },
         { text: record.phone, sort: record.phone },
         { text: record.rate, sort: record.rateCents },
         { text: String(record.days), sort: record.days },
-        { text: record.total, sort: record.totalCents },
+        { text: record.total, sort: record.totalCents, strong: true },
       ],
     })));
     $('historySummary').textContent = (historyQuery === ''
-      ? countText(history.count, 'completed rental', 'completed rentals')
-      : countText(history.count, 'record matches', 'records match') + ' "' + historyQuery + '"') +
-      '   |   Total charged: ' + history.total;
+      ? countText(history.count, 'rental', 'rentals')
+      : countText(history.count, 'match', 'matches')) + ' · ' + history.total;
 
+    refreshDashboard(stats);
+    refreshReports(stats);
+
+    // Navigation counters, status bar, unsaved state
+    $('navFleetCount').textContent = String(current.total);
+    $('navAvailableCount').textContent = String(current.available);
+    $('navRentedCount').textContent = String(current.rented);
     $('sbTotal').textContent = 'Total vehicles: ' + current.total;
     $('sbAvail').textContent = 'Available: ' + current.available;
     $('sbRented').textContent = 'Rented: ' + current.rented;
     $('sbRevenue').textContent = 'Revenue: ' + current.revenue;
     $('sbAction').textContent = lastAction;
-    $('appTitle').textContent = 'Car Rental Management System' + (current.modified ? ' *' : '');
+    $('unsavedBadge').hidden = !current.modified;
     document.title = (current.modified ? '* ' : '') + 'Car Rental Management System';
     updateButtons();
+  }
+
+  function refreshDashboard(stats) {
+    $('kTotal').textContent = String(stats.vehicles);
+    $('kTotalNote').textContent = 'in the fleet';
+    $('kAvailable').textContent = String(stats.available);
+    $('kRented').textContent = String(stats.rented);
+    $('kUtilization').textContent = stats.utilization + '% of the fleet';
+    $('kRevenue').textContent = stats.revenue;
+    $('kRevenueNote').textContent = 'from ' + countText(stats.completedRentals, 'completed rental', 'completed rentals');
+    $('utilFill').style.width = stats.utilization + '%';
+    $('utilText').textContent = stats.utilization + '% rented · active rentals earn ' + stats.activeDailyIncome + ' per day';
+    $('utilMeter').setAttribute('aria-label', stats.utilization + ' percent of the fleet is rented');
+
+    const list = $('recentList');
+    list.replaceChildren();
+    const recent = historyRecordsAll().slice(-5).reverse();
+    if (recent.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'No returns yet.';
+      list.appendChild(li);
+    }
+    for (const record of recent) {
+      const li = document.createElement('li');
+      const avatar = document.createElement('span');
+      avatar.className = 'avatar';
+      avatar.textContent = record.renter.split(/\s+/).map((part) => part[0] || '').join('').slice(0, 2).toUpperCase();
+      const who = document.createElement('span');
+      who.className = 'who';
+      const name = document.createElement('strong');
+      name.textContent = record.renter;
+      const detail = document.createElement('small');
+      detail.textContent = record.plate + ' · ' + record.model + ' · ' + record.days + (record.days === 1 ? ' day' : ' days') + ' · ' + record.returnedOn;
+      who.append(name, detail);
+      const amount = document.createElement('span');
+      amount.className = 'amount';
+      amount.textContent = record.total;
+      li.append(avatar, who, amount);
+      li.title = 'Receipt no. ' + record.number;
+      li.addEventListener('dblclick', () => showReceipt(record, true));
+      list.appendChild(li);
+    }
+  }
+
+  function historyRecordsAll() {
+    return $('historySearch').value.trim() === '' ? historyRecords : call('history', '').records;
+  }
+
+  function refreshReports(stats) {
+    $('rCompleted').textContent = String(stats.completedRentals);
+    $('rTotal').textContent = stats.totalCharged;
+    $('rAverage').textContent = stats.averageCharge;
+    $('rDays').textContent = stats.averageDays;
+
+    const totalCents = stats.byModel.reduce((sum, model) => sum + model.revenueCents, 0);
+    modelTable.setRows(stats.byModel.map((model) => {
+      const share = totalCents > 0 ? (model.revenueCents * 100) / totalCents : 0;
+      return {
+        key: model.model,
+        cells: [
+          { text: model.model, sort: model.model, strong: true },
+          { text: String(model.rentals), sort: model.rentals },
+          { text: String(model.days), sort: model.days },
+          { text: model.revenue, sort: model.revenueCents },
+          { text: Math.round(share) + '%', sort: share, bar: share },
+        ],
+      };
+    }));
+    topTable.setRows(stats.topVehicles.map((vehicle, index) => ({
+      key: vehicle.plate,
+      cells: [
+        { text: String(index + 1), sort: index + 1 },
+        { text: vehicle.plate, sort: vehicle.plate, strong: true },
+        { text: vehicle.model, sort: vehicle.model },
+        { text: String(vehicle.rentals), sort: vehicle.rentals },
+        { text: vehicle.revenue, sort: vehicle.revenueCents },
+      ],
+    })));
   }
 
   function updateButtons() {
     const fleetRow = fleetTable.selectedRow();
     $('editBtn').disabled = !(fleetRow && fleetRow.available);
+    $('removeBtn').disabled = !(fleetRow && fleetRow.available);
     $('rentBtn').disabled = !searchTable.selectedRow();
     $('returnBtn').disabled = !rentalsTable.selectedRow();
     $('historyReceiptBtn').disabled = !historyTable.selectedRow();
-  }
-
-  function reject(message) {
-    setLastAction('Rejected: ' + message);
-    showMessage('Car Rental Management System', message);
   }
 
   // -------------------------------------------------------------- use cases --
@@ -390,22 +526,21 @@
   }
 
   setupDialog($('vehicleDialog'), (form) => {
-    const plate = form.elements.plate.value;
     const model = form.elements.model.value;
     const rate = form.elements.rate.value;
     if (editingPlate === null) {
-      const result = call('addVehicle', plate, model, rate);
+      const result = call('addVehicle', form.elements.plate.value, model, rate);
       if (result.ok) {
-        setLastAction('Added vehicle ' + result.plate + '.');
+        success('Added vehicle ' + result.plate + '.');
+        selectPage('fleet');
         refreshAll();
-        selectTab('fleet');
         fleetTable.select(result.plate);
       }
       return result;
     }
     const result = call('editVehicle', editingPlate, model, rate);
     if (result.ok) {
-      setLastAction('Updated vehicle ' + editingPlate + '.');
+      success('Updated vehicle ' + editingPlate + '.');
       refreshAll();
       fleetTable.select(editingPlate);
     }
@@ -414,10 +549,25 @@
 
   function editVehicle(plate) {
     const key = plate || fleetTable.selectedKey;
-    if (!key) { setLastAction('Select a vehicle on the Fleet tab first.'); return; }
-    const check = call('checkEditable', key); // C++ refuses rented vehicles
+    if (!key) { setLastAction('Select a vehicle first.'); return; }
+    const check = call('checkEditable', key); // the C++ logic refuses rented vehicles
     if (!check.ok) { reject(check.message); return; }
     openVehicleDialog(check.vehicle);
+  }
+
+  async function removeVehicle() {
+    const row = fleetTable.selectedRow();
+    if (!row) { setLastAction('Select a vehicle first.'); return; }
+    const vehicle = current.vehicles.find((item) => item.plate === row.key);
+    const ok = await confirmAction('Remove vehicle',
+      'Remove ' + row.key + (vehicle ? ' (' + vehicle.model + ')' : '') + ' from the fleet?\n\n' +
+      'Its completed rentals stay in the rental history. Choose Save to make the change permanent.',
+      'Remove vehicle');
+    if (!ok) return;
+    const result = call('removeVehicle', row.key); // the C++ logic refuses rented vehicles
+    if (!result.ok) { reject(result.message); return; }
+    success('Removed vehicle ' + row.key + '.');
+    refreshAll();
   }
 
   let rentingPlate = null;
@@ -435,7 +585,7 @@
     fillDetails($('rentDetails'), [['License plate', vehicle.plate], ['Model', vehicle.model], ['Current daily rate', vehicle.rate]]);
     form.elements.renter.value = '';
     form.elements.phone.value = '';
-    form.elements.agreed.value = vehicle.ratePlain; // pre-filled, editable
+    form.elements.agreed.value = vehicle.ratePlain;
     dialog.showModal();
     form.elements.renter.focus();
   }
@@ -443,7 +593,7 @@
   setupDialog($('rentDialog'), (form) => {
     const result = call('rentVehicle', rentingPlate, form.elements.renter.value, form.elements.phone.value, form.elements.agreed.value);
     if (result.ok) {
-      setLastAction('Rented ' + rentingPlate + ' to ' + result.renter + '.');
+      success('Rented ' + rentingPlate + ' to ' + result.renter + '.');
       refreshAll();
     }
     return result;
@@ -452,44 +602,11 @@
   let returningPlate = null;
   let lastReceipt = null;
 
-  // Prints the last receipt (opens a small printable page).
-  function printReceipt() {
-    if (!lastReceipt) return;
-    const receipt = lastReceipt;
-    const rows = [
-      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
-      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
-      ['TOTAL CHARGE', receipt.rate + ' × ' + receipt.days + ' = ' + receipt.total],
-    ];
-    const win = window.open('', '_blank', 'width=480,height=600');
-    if (!win) { showMessage('Print', 'Please allow pop-ups for this site to print the receipt.'); return; }
-    const doc = win.document;
-    doc.title = 'Rental Receipt ' + receipt.plate;
-    const style = doc.createElement('style');
-    style.textContent = 'body{font:14px/1.6 "Segoe UI",Arial,sans-serif;margin:32px;color:#111}' +
-      'h1{font-size:20px;margin:0 0 4px}p{margin:0 0 20px;color:#555}table{border-collapse:collapse;width:100%}' +
-      'td{padding:6px 0;border-bottom:1px solid #ddd}td+td{text-align:right;font-weight:600}tr:last-child td{font-size:16px;border-bottom:0;padding-top:12px}';
-    doc.head.appendChild(style);
-    const heading = doc.createElement('h1');
-    heading.textContent = 'Car Rental Management System';
-    const sub = doc.createElement('p');
-    sub.textContent = 'Rental receipt no. ' + receipt.number + ' – returned ' + receipt.returnedOn;
-    const table = doc.createElement('table');
-    for (const [label, value] of rows) {
-      const tr = table.insertRow();
-      tr.insertCell().textContent = label;
-      tr.insertCell().textContent = value;
-    }
-    doc.body.append(heading, sub, table);
-    win.focus();
-    win.print();
-  }
-
   function updatePreview() {
     const days = $('returnDialog').querySelector('form').elements.days.value;
     const preview = call('previewCharge', returningPlate, days); // Rental::calculateCharge() in C++
     $('chargePreview').textContent = preview.ok
-      ? 'Charge: ' + preview.days + (preview.days === 1 ? ' day' : ' days') + ' × ' + preview.rate + ' = ' + preview.charge
+      ? 'Charge: ' + preview.days + (preview.days === 1 ? ' day ' : ' days ') + TIMES + ' ' + preview.rate + ' = ' + preview.charge
       : 'Charge: enter a whole number of days from 1 to 3650.';
   }
 
@@ -519,37 +636,17 @@
     const result = call('returnVehicle', plate, form.elements.days.value);
     if (result.ok) {
       const receipt = result.receipt;
-      setLastAction('Returned ' + plate + ' - charged ' + receipt.total + ' (receipt no. ' + receipt.number + ').');
+      success('Returned ' + plate + ' - charged ' + receipt.total + ' (receipt no. ' + receipt.number + ').');
       refreshAll();
       setTimeout(() => showReceipt(receipt, false), 0);
     }
     return result;
   });
 
-  // Shows a receipt: a new one after a return, or a copy from the Rental History.
-  function showReceipt(receipt, isCopy) {
-    $('receiptTitle').textContent = isCopy ? 'Rental Receipt (copy)' : 'Rental Receipt';
-    $('receiptMeta').textContent = 'Receipt no. ' + receipt.number + ' – returned ' + receipt.returnedOn;
-    fillDetails($('receiptDetails'), [
-      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
-      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
-      ['Total charge', receipt.rate + ' × ' + receipt.days + ' = ' + receipt.total],
-    ]);
-    lastReceipt = receipt;
-    $('receiptDialog').showModal();
-  }
-
-  function showHistoryReceipt(key) {
-    const number = key || historyTable.selectedKey;
-    const record = historyRecords.find((item) => String(item.number) === number);
-    if (!record) { setLastAction('Select a record on the Rental History tab first.'); return; }
-    showReceipt(record, true);
-  }
-
-  // Days box: digits only while typing (like ES_NUMBER); pasting is still
-  // possible so that the C++ validation of "2.5", "-3", "abc" can be shown.
   (function setupDaysInput() {
     const input = $('returnDialog').querySelector('form').elements.days;
+    // Digits only while typing (like ES_NUMBER in the desktop program); pasting is
+    // still possible so the C++ validation of "2.5", "-3" or "abc" can be shown.
     input.addEventListener('beforeinput', (event) => {
       if (event.inputType === 'insertText' && event.data && /\D/.test(event.data)) event.preventDefault();
     });
@@ -569,6 +666,57 @@
     }
   })();
 
+  function showReceipt(receipt, isCopy) {
+    $('receiptTitle').textContent = isCopy ? 'Rental Receipt (copy)' : 'Rental Receipt';
+    $('receiptMeta').textContent = 'Receipt no. ' + receipt.number + ' · returned ' + receipt.returnedOn;
+    fillDetails($('receiptDetails'), [
+      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
+      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
+      ['Total charge', receipt.rate + ' ' + TIMES + ' ' + receipt.days + ' = ' + receipt.total],
+    ]);
+    lastReceipt = receipt;
+    $('receiptDialog').showModal();
+  }
+
+  function showHistoryReceipt(key) {
+    const number = key || historyTable.selectedKey;
+    const record = historyRecords.find((item) => String(item.number) === number);
+    if (!record) { setLastAction('Select a record first.'); return; }
+    showReceipt(record, true);
+  }
+
+  function printReceipt() {
+    if (!lastReceipt) return;
+    const receipt = lastReceipt;
+    const rows = [
+      ['License plate', receipt.plate], ['Model', receipt.model], ['Renter', receipt.renter],
+      ['Telephone', receipt.phone], ['Agreed daily rate', receipt.rate], ['Rental days', String(receipt.days)],
+      ['TOTAL CHARGE', receipt.rate + ' ' + TIMES + ' ' + receipt.days + ' = ' + receipt.total],
+    ];
+    const win = window.open('', '_blank', 'width=480,height=600');
+    if (!win) { showMessage('Print', 'Please allow pop-ups for this site to print the receipt.'); return; }
+    const doc = win.document;
+    doc.title = 'Rental Receipt ' + receipt.number;
+    const style = doc.createElement('style');
+    style.textContent = 'body{font:14px/1.6 "Segoe UI",Arial,sans-serif;margin:32px;color:#111}' +
+      'h1{font-size:20px;margin:0 0 4px}p{margin:0 0 20px;color:#555}table{border-collapse:collapse;width:100%}' +
+      'td{padding:6px 0;border-bottom:1px solid #ddd}td+td{text-align:right;font-weight:600}tr:last-child td{font-size:16px;border-bottom:0;padding-top:12px}';
+    doc.head.appendChild(style);
+    const heading = doc.createElement('h1');
+    heading.textContent = 'Car Rental Management System';
+    const sub = doc.createElement('p');
+    sub.textContent = 'Rental receipt no. ' + receipt.number + ' – returned ' + receipt.returnedOn;
+    const table = doc.createElement('table');
+    for (const [label, value] of rows) {
+      const tr = table.insertRow();
+      tr.insertCell().textContent = label;
+      tr.insertCell().textContent = value;
+    }
+    doc.body.append(heading, sub, table);
+    win.focus();
+    win.print();
+  }
+
   // -------------------------------------------------------------- save/load --
   function save() {
     const result = call('save'); // TextFileDataStore::save() through IDataStore&
@@ -576,8 +724,8 @@
     const stored = storageSet(STORAGE_VEHICLES, readDataFile('vehicles.txt')) &&
                    storageSet(STORAGE_REVENUE, readDataFile('revenue.txt')) &&
                    storageSet(STORAGE_HISTORY, readDataFile('history.txt'));
-    setLastAction(stored
-      ? 'Saved ' + countText(current.total, 'vehicle', 'vehicles') + ' and revenue ' + current.revenue + '.'
+    success(stored
+      ? 'Saved ' + countText(current.total, 'vehicle', 'vehicles') + ', revenue ' + current.revenue + ' and the rental history.'
       : 'Saved for this session only (browser storage is unavailable).');
     refreshAll();
     return true;
@@ -587,10 +735,7 @@
     writeDataFiles(vehiclesText, revenueText, historyText);
     const result = call('load'); // RentalAgency::loadFrom(IDataStore&)
     if (!result.ok) { reject(result.message); return; }
-    fleetTable.selectedKey = null;
-    searchTable.selectedKey = null;
-    rentalsTable.selectedKey = null;
-    historyTable.selectedKey = null;
+    [fleetTable, searchTable, rentalsTable, historyTable].forEach((table) => { table.selectedKey = null; });
     refreshAll();
     setLastAction('Loaded ' + countText(current.total, 'vehicle', 'vehicles') + ' from ' + sourceLabel + '.');
     if (result.warnings.length > 0) {
@@ -613,33 +758,32 @@
       confirmAction('Unsaved changes', 'You have unsaved changes. Discard them and continue?', 'Discard changes');
   }
 
-  // ------------------------------------------------------------------- tabs --
-  const tabs = ['fleet', 'search', 'rentals', 'history'];
+  // ------------------------------------------------------------- navigation --
+  const pages = ['dashboard', 'fleet', 'search', 'rentals', 'history', 'reports'];
+  const focusTargets = { fleet: 'fleetSearch', search: 'searchInput', history: 'historySearch' };
 
-  function selectTab(name) {
-    for (const tab of tabs) {
-      const active = tab === name;
-      const button = $('tab-' + tab);
-      button.setAttribute('aria-selected', active ? 'true' : 'false');
-      button.tabIndex = active ? 0 : -1;
-      $('panel-' + tab).hidden = !active;
+  function selectPage(name, options = {}) {
+    if (!pages.includes(name)) name = 'dashboard';
+    for (const page of pages) {
+      $('page-' + page).hidden = page !== name;
     }
-    if (name === 'search') $('searchInput').focus();
-    if (name === 'history') $('historySearch').focus();
+    document.querySelectorAll('.nav-item').forEach((item) => {
+      if (item.dataset.page === name) item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    });
+    const section = $('page-' + name);
+    $('pageTitle').textContent = section.dataset.title;
+    $('pageSubtitle').textContent = section.dataset.subtitle;
+    if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+    closeSidebar();
+    if (options.focus !== false && focusTargets[name]) $(focusTargets[name]).focus();
   }
 
-  tabs.forEach((tab, index) => {
-    const button = $('tab-' + tab);
-    button.addEventListener('click', () => selectTab(tab));
-    button.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-        event.preventDefault();
-        const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-        selectTab(next);
-        $('tab-' + next).focus();
-      }
-    });
-  });
+  const scrim = document.createElement('div');
+  scrim.className = 'scrim';
+  document.body.appendChild(scrim);
+  function closeSidebar() { $('sidebar').classList.remove('open'); scrim.classList.remove('open'); }
+  function openSidebar() { $('sidebar').classList.add('open'); scrim.classList.add('open'); }
 
   // --------------------------------------------------------------- self-test --
   function runSelfTest() {
@@ -665,13 +809,35 @@
 
   // ---------------------------------------------------------- wire-up events --
   function wireEvents() {
+    document.querySelectorAll('.nav-item').forEach((item) =>
+      item.addEventListener('click', () => selectPage(item.dataset.page)));
+    document.querySelectorAll('[data-goto]').forEach((item) =>
+      item.addEventListener('click', () => selectPage(item.dataset.goto)));
+    $('menuToggle').addEventListener('click', openSidebar);
+    scrim.addEventListener('click', closeSidebar);
+
+    $('qaAdd').addEventListener('click', () => openVehicleDialog(null));
     $('addBtn').addEventListener('click', () => openVehicleDialog(null));
     $('editBtn').addEventListener('click', () => editVehicle());
+    $('removeBtn').addEventListener('click', () => removeVehicle());
     $('rentBtn').addEventListener('click', () => rentVehicle());
     $('returnBtn').addEventListener('click', () => returnVehicle());
+    $('historyReceiptBtn').addEventListener('click', () => showHistoryReceipt());
+    $('printReceiptBtn').addEventListener('click', () => printReceipt());
+
+    $('fleetSearch').addEventListener('input', () => refreshAll());
     $('searchInput').addEventListener('input', () => refreshAll());
     $('historySearch').addEventListener('input', () => refreshAll());
-    $('historyReceiptBtn').addEventListener('click', () => showHistoryReceipt());
+    document.querySelectorAll('.segmented button').forEach((button) => button.addEventListener('click', () => {
+      fleetFilter = button.dataset.filter;
+      document.querySelectorAll('.segmented button').forEach((other) =>
+        other.setAttribute('aria-checked', other === button ? 'true' : 'false'));
+      refreshAll();
+    }));
+    $('fleetTable').addEventListener('keydown', (event) => {
+      if (event.key === 'Delete' && fleetTable.selectedRow()) { event.preventDefault(); removeVehicle(); }
+    });
+
     $('saveBtn').addEventListener('click', () => save());
     $('selfTestBtn').addEventListener('click', () => runSelfTest());
     $('errorsBtn').addEventListener('click', async () => {
@@ -679,51 +845,52 @@
       const [vehicles, revenue, history] = await Promise.all([
         fetchText('data/vehicles_with_errors.txt'), fetchText('data/revenue.txt'), fetchText('data/history.txt')]);
       loadFromFiles(vehicles, revenue, history, 'vehicles_with_errors.txt (not saved until you choose Save)');
+      selectPage('fleet', { focus: false });
     });
     $('resetBtn').addEventListener('click', async () => {
       const ok = await confirmAction('Reset sample data',
         'Replace all vehicles, the revenue and the rental history with the original sample data? ' +
-        'Your saved data in this browser will be deleted.',
-        'Reset sample data');
+        'Your saved data in this browser will be deleted.', 'Reset sample data');
       if (!ok) return;
       storageRemove(STORAGE_VEHICLES);
       storageRemove(STORAGE_REVENUE);
       storageRemove(STORAGE_HISTORY);
       await loadSample();
+      success('Sample data restored.');
     });
-    $('printReceiptBtn').addEventListener('click', () => printReceipt());
+
     document.addEventListener('keydown', (event) => {
       if (!(event.ctrlKey || event.metaKey) || !app) return;
       const key = event.key.toLowerCase();
       if (key === 's') { event.preventDefault(); save(); }
-      if (key === 'f') { event.preventDefault(); selectTab('search'); $('searchInput').select(); }
+      if (key === 'f') { event.preventDefault(); selectPage('search'); $('searchInput').select(); }
     });
+    window.addEventListener('hashchange', () => selectPage(location.hash.slice(1), { focus: false }));
     window.addEventListener('beforeunload', (event) => {
       if (current.modified) { event.preventDefault(); event.returnValue = ''; }
     });
   }
 
-  function setButtonsEnabled(enabled) {
-    document.querySelectorAll('#app button').forEach((button) => { button.disabled = !enabled; });
+  function setControlsEnabled(enabled) {
+    document.querySelectorAll('#app button, #app input').forEach((control) => { control.disabled = !enabled; });
   }
 
   // ------------------------------------------------------------------- start --
   async function start() {
-    setButtonsEnabled(false);
+    selectPage(location.hash.slice(1) || 'dashboard', { focus: false });
+    setControlsEnabled(false);
     try {
       if (typeof window.createRentalModule !== 'function') throw new Error('rental_core.js was not loaded.');
       engine = await window.createRentalModule();
       engine.FS.mkdirTree(DATA_DIR);
       app = new engine.WebApp();
-      setButtonsEnabled(true);
+      setControlsEnabled(true);
       wireEvents();
-      $('engineStatus').textContent = 'C++ engine: WebAssembly ✓';
+      $('engineStatus').textContent = 'C++ engine: WebAssembly';
       $('engineStatus').classList.add('ready');
       const savedVehicles = storageGet(STORAGE_VEHICLES);
-      const savedRevenue = storageGet(STORAGE_REVENUE);
-      const savedHistory = storageGet(STORAGE_HISTORY);
       if (savedVehicles !== null) {
-        loadFromFiles(savedVehicles, savedRevenue || '', savedHistory || '', 'your saved data');
+        loadFromFiles(savedVehicles, storageGet(STORAGE_REVENUE) || '', storageGet(STORAGE_HISTORY) || '', 'your saved data');
       } else {
         await loadSample();
       }

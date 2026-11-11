@@ -26,6 +26,14 @@
 
 class IDataStore;
 
+/// Which vehicles RentalAgency::searchFleet() returns.
+enum class StatusFilter
+{
+    All,
+    Available,
+    Rented
+};
+
 class RentalAgency
 {
 public:
@@ -38,6 +46,14 @@ public:
     /// 2. Changes the model and daily rate of an AVAILABLE vehicle.
     /// @throws VehicleNotFoundException, VehicleNotAvailableException, ValidationException
     void editVehicle(const std::wstring& plate, const std::wstring& model, const Money& dailyRate);
+
+    /// Removes an AVAILABLE vehicle from the fleet. Its completed rentals stay in the history.
+    /// @throws VehicleNotFoundException, VehicleNotAvailableException (vehicle is rented)
+    void removeVehicle(const std::wstring& plate);
+
+    /// All vehicles whose plate or model contains the query (case-insensitive),
+    /// limited to the given status. An empty query matches every vehicle.
+    std::vector<Vehicle> searchFleet(const std::wstring& query, StatusFilter filter) const;
 
     /// 3. Available vehicles whose model contains the query (case-insensitive).
     ///    An empty query returns all available vehicles.

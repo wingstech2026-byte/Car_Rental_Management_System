@@ -32,6 +32,39 @@ void RentalAgency::editVehicle(const std::wstring& plate, const std::wstring& mo
     m_modified = true;
 }
 
+void RentalAgency::removeVehicle(const std::wstring& plate)
+{
+    const Vehicle& vehicle = findVehicle(plate);
+    if (!vehicle.isAvailable())
+    {
+        throw VehicleNotAvailableException(vehicle.getPlate(), L"removed");
+    }
+    const std::wstring key = vehicle.getPlate(); // copy: 'vehicle' is destroyed by erase()
+    m_fleet.erase(key);
+    m_modified = true;
+}
+
+std::vector<Vehicle> RentalAgency::searchFleet(const std::wstring& query, StatusFilter filter) const
+{
+    const std::wstring trimmedQuery = TextUtils::trim(query);
+    std::vector<Vehicle> result;
+    for (const auto& entry : m_fleet)
+    {
+        const Vehicle& vehicle = entry.second;
+        const bool statusMatches = filter == StatusFilter::All ||
+                                   (filter == StatusFilter::Available && vehicle.isAvailable()) ||
+                                   (filter == StatusFilter::Rented && vehicle.isRented());
+        const bool textMatches = trimmedQuery.empty() ||
+                                 TextUtils::containsIgnoreCase(vehicle.getPlate(), trimmedQuery) ||
+                                 TextUtils::containsIgnoreCase(vehicle.getModel(), trimmedQuery);
+        if (statusMatches && textMatches)
+        {
+            result.push_back(vehicle);
+        }
+    }
+    return result;
+}
+
 std::vector<Vehicle> RentalAgency::searchAvailableByModel(const std::wstring& query) const
 {
     const std::wstring trimmedQuery = TextUtils::trim(query);

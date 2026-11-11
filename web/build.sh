@@ -38,6 +38,7 @@ CORE_SOURCES=(
   Rental.cpp
   Receipt.cpp
   RentalRecord.cpp
+  RentalStatistics.cpp
   Vehicle.cpp
   RentalAgency.cpp
   RentalExceptions.cpp

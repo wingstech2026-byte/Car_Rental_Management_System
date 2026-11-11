@@ -9,6 +9,7 @@
 #include "RentDialog.h"
 #include "RentalAgency.h"
 #include "RentalExceptions.h"
+#include "RentalStatistics.h"
 #include "Resource.h"
 #include "ReturnDialog.h"
 #include "TextUtils.h"
@@ -347,7 +348,7 @@ void MainWindow::createControls()
     m_tab = Gui::createChild(m_hwnd, m_instance, WC_TABCONTROLW, L"",
                              WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_TABSTOP, 0, IDC_TAB);
     const std::array<const wchar_t*, TabCount> titles{ L"Fleet", L"Search && Rent", L"Rentals && Returns",
-                                                       L"Rental History" };
+                                                       L"Rental History", L"Reports" };
     for (int index = 0; index < TabCount; ++index)
     {
         std::wstring title = titles[static_cast<std::size_t>(index)];
@@ -369,6 +370,7 @@ void MainWindow::createControls()
     createSearchPage(page(SearchTab));
     createRentalsPage(page(RentalsTab));
     createHistoryPage(page(HistoryTab));
+    createReportsPage(page(ReportsTab));
 
     m_statusBar = Gui::createChild(m_hwnd, m_instance, STATUSCLASSNAMEW, L"",
                                    WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP, 0, IDC_STATUS_BAR);
@@ -379,9 +381,25 @@ void MainWindow::createControls()
 
 void MainWindow::createFleetPage(HWND fleetPage)
 {
+    // Search box + status filter
+    m_fleetSearchLabel = Gui::createChild(fleetPage, m_instance, L"STATIC", L"Find &vehicle:",
+                                          WS_CHILD | WS_VISIBLE | SS_LEFT, 0, IDC_FLEET_SEARCH_LABEL);
+    m_fleetSearch = Gui::createChild(fleetPage, m_instance, L"EDIT", L"",
+                                     WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE,
+                                     IDC_FLEET_SEARCH);
+    SendMessageW(m_fleetSearch, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"Plate or model..."));
+    SendMessageW(m_fleetSearch, EM_LIMITTEXT, 60, 0);
+    m_fleetFilter = Gui::createChild(fleetPage, m_instance, WC_COMBOBOXW, L"",
+                                     WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST, 0,
+                                     IDC_FLEET_FILTER);
+    for (const wchar_t* option : { L"All vehicles", L"Available only", L"Rented only" })
+    {
+        SendMessageW(m_fleetFilter, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(option));
+    }
+    SendMessageW(m_fleetFilter, CB_SETCURSEL, 0, 0);
+
     m_fleetHint = Gui::createChild(fleetPage, m_instance, L"STATIC",
-        L"All vehicles in the fleet. Green rows are Available, orange rows are Rented. "
-        L"Double-click an available vehicle (or press Enter) to edit it. Click a column header to sort.",
+        L"Green = Available, orange = Rented. Double-click (or Enter) edits, Delete removes an available vehicle.",
         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS, 0, IDC_FLEET_HINT);
 
     std::vector<ReportListView::Column> columns;
@@ -395,6 +413,32 @@ void MainWindow::createFleetPage(HWND fleetPage)
                                    WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, IDC_ADD_BUTTON);
     m_editButton = Gui::createChild(fleetPage, m_instance, L"BUTTON", L"&Edit Selected...",
                                     WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, IDC_EDIT_BUTTON);
+    m_removeButton = Gui::createChild(fleetPage, m_instance, L"BUTTON", L"Re&move Selected...",
+                                      WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, IDC_REMOVE_BUTTON);
+}
+
+void MainWindow::createReportsPage(HWND reportsPage)
+{
+    m_reportsSummary = Gui::createChild(reportsPage, m_instance, L"STATIC", L"",
+                                        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX, 0, IDC_REPORTS_SUMMARY);
+
+    m_modelLabel = Gui::createChild(reportsPage, m_instance, L"STATIC", L"Revenue by model",
+                                    WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX, 0, IDC_MODEL_LABEL);
+    std::vector<ReportListView::Column> modelColumns;
+    modelColumns.push_back(makeColumn(L"Model", 4, false));
+    modelColumns.push_back(makeColumn(L"Rentals", 2, true));
+    modelColumns.push_back(makeColumn(L"Days", 2, true));
+    modelColumns.push_back(makeColumn(L"Revenue", 3, true));
+    m_modelList.create(reportsPage, IDC_MODEL_LIST, m_instance, modelColumns);
+
+    m_topVehicleLabel = Gui::createChild(reportsPage, m_instance, L"STATIC", L"Most rented vehicles",
+                                         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX, 0, IDC_TOPVEHICLE_LABEL);
+    std::vector<ReportListView::Column> vehicleColumns;
+    vehicleColumns.push_back(makeColumn(L"Plate", 2, false));
+    vehicleColumns.push_back(makeColumn(L"Model", 4, false));
+    vehicleColumns.push_back(makeColumn(L"Rentals", 2, true));
+    vehicleColumns.push_back(makeColumn(L"Revenue", 3, true));
+    m_topVehicleList.create(reportsPage, IDC_TOPVEHICLE_LIST, m_instance, vehicleColumns);
 }
 
 void MainWindow::createSearchPage(HWND searchPage)
@@ -530,26 +574,65 @@ void MainWindow::layout()
     layoutSearchPage(pageWidth, pageHeight);
     layoutRentalsPage(pageWidth, pageHeight);
     layoutHistoryPage(pageWidth, pageHeight);
+    layoutReportsPage(pageWidth, pageHeight);
 }
 
 void MainWindow::layoutFleetPage(int width, int height)
 {
     const int padding = scale(10);
     const int gap = scale(8);
+    const int labelWidth = scale(90);
     const int labelHeight = scale(20);
+    const int editHeight = scale(26);
     const int buttonWidth = scale(150);
     const int buttonHeight = scale(30);
 
-    MoveWindow(m_fleetHint, padding, padding, std::max(0, width - 2 * padding), labelHeight, TRUE);
+    // Row 1: Find vehicle [ search ] [ filter v ]
+    MoveWindow(m_fleetSearchLabel, padding, padding + (editHeight - labelHeight) / 2, labelWidth, labelHeight, TRUE);
+    const int editLeft = padding + labelWidth + gap;
+    const int editWidth = std::max(0, std::min(scale(300), width - editLeft - scale(170) - 2 * padding));
+    MoveWindow(m_fleetSearch, editLeft, padding, editWidth, editHeight, TRUE);
+    // A drop-down combo box's height includes its open list.
+    MoveWindow(m_fleetFilter, editLeft + editWidth + gap, padding, scale(160), scale(200), TRUE);
 
-    const int listTop = padding + labelHeight + gap;
+    // Row 2: the list
+    const int listTop = padding + editHeight + gap;
     const int buttonTop = height - padding - buttonHeight;
     MoveWindow(m_fleetList.handle(), padding, listTop, std::max(0, width - 2 * padding),
                std::max(0, buttonTop - gap - listTop), TRUE);
     m_fleetList.fitColumnsToWidth();
 
+    // Row 3: buttons, then the hint
     MoveWindow(m_addButton, padding, buttonTop, buttonWidth, buttonHeight, TRUE);
     MoveWindow(m_editButton, padding + buttonWidth + gap, buttonTop, buttonWidth, buttonHeight, TRUE);
+    MoveWindow(m_removeButton, padding + 2 * (buttonWidth + gap), buttonTop, buttonWidth, buttonHeight, TRUE);
+    const int hintLeft = padding + 3 * (buttonWidth + gap) + gap;
+    MoveWindow(m_fleetHint, hintLeft, buttonTop + (buttonHeight - labelHeight) / 2,
+               std::max(0, width - hintLeft - padding), labelHeight, TRUE);
+}
+
+void MainWindow::layoutReportsPage(int width, int height)
+{
+    const int padding = scale(10);
+    const int gap = scale(12);
+    const int summaryHeight = scale(96);
+    const int labelHeight = scale(22);
+
+    MoveWindow(m_reportsSummary, padding, padding, std::max(0, width - 2 * padding), summaryHeight, TRUE);
+
+    const int top = padding + summaryHeight + gap;
+    const int columnWidth = std::max(0, (width - 2 * padding - gap) / 2);
+    const int listTop = top + labelHeight;
+    const int listHeight = std::max(0, height - padding - listTop);
+
+    MoveWindow(m_modelLabel, padding, top, columnWidth, labelHeight, TRUE);
+    MoveWindow(m_modelList.handle(), padding, listTop, columnWidth, listHeight, TRUE);
+    m_modelList.fitColumnsToWidth();
+
+    const int rightLeft = padding + columnWidth + gap;
+    MoveWindow(m_topVehicleLabel, rightLeft, top, columnWidth, labelHeight, TRUE);
+    MoveWindow(m_topVehicleList.handle(), rightLeft, listTop, columnWidth, listHeight, TRUE);
+    m_topVehicleList.fitColumnsToWidth();
 }
 
 void MainWindow::layoutSearchPage(int width, int height)
@@ -684,6 +767,26 @@ void MainWindow::onCommand(int commandId, int notificationCode)
             onEditVehicle();
         }
         break;
+    case IDC_REMOVE_BUTTON:
+        if (notificationCode == BN_CLICKED)
+        {
+            onRemoveVehicle();
+        }
+        break;
+    case IDC_FLEET_SEARCH:
+        if (notificationCode == EN_CHANGE)
+        {
+            refreshFleet();
+            updateButtons();
+        }
+        break;
+    case IDC_FLEET_FILTER:
+        if (notificationCode == CBN_SELCHANGE)
+        {
+            refreshFleet();
+            updateButtons();
+        }
+        break;
     case IDC_RENT_BUTTON:
         if (notificationCode == BN_CLICKED)
         {
@@ -725,7 +828,16 @@ LRESULT MainWindow::onNotify(NMHDR& header)
         }
         return 0;
     case IDC_FLEET_LIST:
+        if (header.code == LVN_KEYDOWN && reinterpret_cast<const NMLVKEYDOWN&>(header).wVKey == VK_DELETE)
+        {
+            onRemoveVehicle(); // Delete key removes the selected vehicle
+            return 0;
+        }
         return handleListNotification(m_fleetList, header, &MainWindow::onEditVehicle);
+    case IDC_MODEL_LIST:
+        return handleListNotification(m_modelList, header, nullptr);
+    case IDC_TOPVEHICLE_LIST:
+        return handleListNotification(m_topVehicleList, header, nullptr);
     case IDC_SEARCH_LIST:
         return handleListNotification(m_searchList, header, &MainWindow::onRentVehicle);
     case IDC_RENTALS_LIST:
@@ -750,7 +862,7 @@ LRESULT MainWindow::handleListNotification(ReportListView& list, NMHDR& header, 
         list.sortByColumn(reinterpret_cast<const NMLISTVIEW&>(header).iSubItem);
         return 0;
     case NM_DBLCLK:
-        if (list.selectedRow() != nullptr)
+        if (activate != nullptr && list.selectedRow() != nullptr)
         {
             (this->*activate)();
         }
@@ -772,6 +884,10 @@ LRESULT MainWindow::onControlColor(HDC deviceContext, HWND control) const
              control == m_historyHint)
     {
         SetTextColor(deviceContext, HintTextColor);
+    }
+    else if (control == m_modelLabel || control == m_topVehicleLabel)
+    {
+        SetTextColor(deviceContext, RevenueTextColor);
     }
     else
     {
@@ -838,6 +954,32 @@ void MainWindow::onEditVehicle()
         m_fleetList.selectKey(plate);
         setLastAction(L"Updated vehicle " + plate + L".");
     }
+}
+
+void MainWindow::onRemoveVehicle()
+{
+    const ReportListView::Row* row = m_fleetList.selectedRow();
+    if (row == nullptr)
+    {
+        setLastAction(L"Select a vehicle on the Fleet tab first.");
+        return;
+    }
+    const std::wstring plate = row->key;
+    const Vehicle& vehicle = m_agency.findVehicle(plate);
+    if (!vehicle.isAvailable())
+    {
+        m_agency.removeVehicle(plate); // throws VehicleNotAvailableException with the business message
+    }
+
+    const std::wstring question = L"Remove vehicle " + plate + L" (" + vehicle.getModel() +
+                                  L") from the fleet?\n\nIts completed rentals stay in the rental history.";
+    if (MessageBoxW(m_hwnd, question.c_str(), L"Remove vehicle", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES)
+    {
+        return;
+    }
+    m_agency.removeVehicle(plate);
+    refreshAll();
+    setLastAction(L"Removed vehicle " + plate + L".");
 }
 
 void MainWindow::onRentVehicle()
@@ -993,6 +1135,7 @@ void MainWindow::refreshAll()
     refreshSearch();
     refreshRentals();
     refreshHistory();
+    refreshReports();
     refreshStatusBar();
     updateButtons();
     updateTitle();
@@ -1000,8 +1143,14 @@ void MainWindow::refreshAll()
 
 void MainWindow::refreshFleet()
 {
+    const std::wstring query = TextUtils::trim(Gui::getWindowText(m_fleetSearch));
+    const LRESULT selection = SendMessageW(m_fleetFilter, CB_GETCURSEL, 0, 0);
+    const StatusFilter filter = selection == 1 ? StatusFilter::Available
+                              : selection == 2 ? StatusFilter::Rented
+                                               : StatusFilter::All;
+
     std::vector<ReportListView::Row> rows;
-    for (const Vehicle& vehicle : m_agency.getAllVehicles())
+    for (const Vehicle& vehicle : m_agency.searchFleet(query, filter))
     {
         ReportListView::Row row;
         row.key = vehicle.getPlate();
@@ -1096,6 +1245,48 @@ void MainWindow::refreshHistory()
     SetWindowTextW(m_historySummary, summary.c_str());
 }
 
+void MainWindow::refreshReports()
+{
+    const RentalStatistics stats(m_agency); // all figures are calculated by the business layer
+
+    const std::wstring summary =
+        L"FLEET:   " + countText(stats.getVehicleCount(), L"vehicle", L"vehicles") + L"  -  " +
+        std::to_wstring(stats.getAvailableCount()) + L" available, " + std::to_wstring(stats.getRentedCount()) +
+        L" rented  (" + std::to_wstring(stats.getUtilizationPercent()) + L"% of the fleet is rented)\n" +
+        L"ACTIVE RENTALS:   earn " + stats.getActiveDailyIncome().toDisplayString() + L" per day\n" +
+        L"REVENUE:   " + stats.getRevenue().toDisplayString() + L" cumulative rental revenue\n" +
+        L"COMPLETED RENTALS:   " + std::to_wstring(stats.getCompletedRentals()) + L"  -  total charged " +
+        stats.getTotalCharged().toDisplayString() + L", average " + stats.getAverageCharge().toDisplayString() +
+        L" per rental, average length " + stats.getAverageDaysText() + L" days";
+    SetWindowTextW(m_reportsSummary, summary.c_str());
+
+    std::vector<ReportListView::Row> modelRows;
+    for (const ModelSummary& model : stats.getRevenueByModel())
+    {
+        ReportListView::Row row;
+        row.key = model.model;
+        row.cells.push_back({ model.model, 0 });
+        row.cells.push_back({ std::to_wstring(model.rentals), model.rentals });
+        row.cells.push_back({ std::to_wstring(model.days), model.days });
+        row.cells.push_back({ model.revenue.toDisplayString(), model.revenue.cents() });
+        modelRows.push_back(std::move(row));
+    }
+    m_modelList.setRows(std::move(modelRows));
+
+    std::vector<ReportListView::Row> vehicleRows;
+    for (const VehicleSummary& vehicle : stats.getTopVehicles())
+    {
+        ReportListView::Row row;
+        row.key = vehicle.plate;
+        row.cells.push_back({ vehicle.plate, 0 });
+        row.cells.push_back({ vehicle.model, 0 });
+        row.cells.push_back({ std::to_wstring(vehicle.rentals), vehicle.rentals });
+        row.cells.push_back({ vehicle.revenue.toDisplayString(), vehicle.revenue.cents() });
+        vehicleRows.push_back(std::move(row));
+    }
+    m_topVehicleList.setRows(std::move(vehicleRows));
+}
+
 void MainWindow::refreshStatusBar()
 {
     const std::wstring parts[5] = {
@@ -1116,6 +1307,7 @@ void MainWindow::updateButtons()
 {
     const ReportListView::Row* fleetRow = m_fleetList.selectedRow();
     enableControl(m_editButton, fleetRow != nullptr && fleetRow->actionable, m_fleetList.handle());
+    enableControl(m_removeButton, fleetRow != nullptr && fleetRow->actionable, m_fleetList.handle());
     enableControl(m_rentButton, m_searchList.selectedRow() != nullptr, m_searchList.handle());
     enableControl(m_returnButton, m_rentalsList.selectedRow() != nullptr, m_rentalsList.handle());
 }
@@ -1182,6 +1374,9 @@ void MainWindow::focusCurrentPage()
         break;
     case HistoryTab:
         SetFocus(m_historySearch);
+        break;
+    case ReportsTab:
+        SetFocus(m_modelList.handle());
         break;
     default:
         break;

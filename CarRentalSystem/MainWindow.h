@@ -48,7 +48,8 @@ private:
     static constexpr int SearchTab = 1;
     static constexpr int RentalsTab = 2;
     static constexpr int HistoryTab = 3;
-    static constexpr int TabCount = 4;
+    static constexpr int ReportsTab = 4;
+    static constexpr int TabCount = 5;
 
     // ---- Window procedure plumbing -----------------------------------------------
     static bool registerWindowClasses(HINSTANCE instance);
@@ -63,12 +64,14 @@ private:
     void createSearchPage(HWND page);
     void createRentalsPage(HWND page);
     void createHistoryPage(HWND page);
+    void createReportsPage(HWND page);
     void applyFonts();
     void layout();
     void layoutFleetPage(int width, int height);
     void layoutSearchPage(int width, int height);
     void layoutRentalsPage(int width, int height);
     void layoutHistoryPage(int width, int height);
+    void layoutReportsPage(int width, int height);
     void updateStatusBarParts();
     int scale(int value) const noexcept;
 
@@ -82,6 +85,7 @@ private:
     // ---- Use cases ----------------------------------------------------------------
     void onAddVehicle();
     void onEditVehicle();
+    void onRemoveVehicle();
     void onRentVehicle();
     void onReturnVehicle();
     void onShowHistoryReceipt();
@@ -96,6 +100,7 @@ private:
     void refreshSearch();
     void refreshRentals();
     void refreshHistory();
+    void refreshReports();
     void refreshStatusBar();
     void updateButtons();
     void updateTitle();
@@ -126,9 +131,20 @@ private:
 
     // Fleet tab
     HWND m_fleetHint = nullptr;
+    HWND m_fleetSearchLabel = nullptr;
+    HWND m_fleetSearch = nullptr;
+    HWND m_fleetFilter = nullptr;
     ReportListView m_fleetList;
     HWND m_addButton = nullptr;
     HWND m_editButton = nullptr;
+    HWND m_removeButton = nullptr;
+
+    // Reports tab
+    HWND m_reportsSummary = nullptr;
+    HWND m_modelLabel = nullptr;
+    ReportListView m_modelList;
+    HWND m_topVehicleLabel = nullptr;
+    ReportListView m_topVehicleList;
 
     // Search & Rent tab
     HWND m_searchLabel = nullptr;

@@ -199,7 +199,7 @@ Rentals & Returns tab → select **HON-222** (Maria Garcia, 145.50) → **Return
 
 | # | Action | Expected result | ☐ |
 |---|---|---|---|
-| 11.1 | **Help > Run Business Rule Self-Test** | *"36 of 36 business-rule checks passed."* It lists `[PASS]` for every rule: duplicate plate, invalid plate, empty/`\|` model, invalid rates, empty name, invalid phones, renting a rented vehicle, editing a rented vehicle, returning an available vehicle, invalid days (0, -2, 2.5, abc, empty, 99999), the correct charge (140.50 × 3 = 421.50), the rental history (archiving, search, invalid date rejected), exact money arithmetic, and the save/load round trip through `IDataStore&` (polymorphism). It runs on a temporary agency, so your real data is unchanged (the title does not get a `*`). | ☐ |
+| 11.1 | **Help > Run Business Rule Self-Test** | *"40 of 40 business-rule checks passed."* It lists `[PASS]` for every rule: duplicate plate, invalid plate, empty/`\|` model, invalid rates, empty name, invalid phones, renting a rented vehicle, editing a rented vehicle, returning an available vehicle, invalid days (0, -2, 2.5, abc, empty, 99999), the correct charge (140.50 × 3 = 421.50), the rental history (archiving, search, invalid date rejected), fleet search and filter, removing vehicles (rented ones refused), statistics, exact money arithmetic, and the save/load round trip through `IDataStore&` (polymorphism). It runs on a temporary agency, so your real data is unchanged (the title does not get a `*`). | ☐ |
 
 ## 12. Rental history
 
@@ -215,3 +215,28 @@ Start from fresh sample data (step 9.5): 4 completed rentals in `history.txt`.
 | 12.6 | Rentals & Returns: return **HON-222** for `3` days. | The receipt now starts with **"Receipt no. 5 - <today's date and time>"**. Rental History shows 5 records and "Total charged: 3,686.50", matching the new revenue. | ☐ |
 | 12.7 | **Ctrl+S**, close and restart. Open `x64\Debug\history.txt` in Notepad. | The history still has 5 records. The file has a new line: `5\|<date>\|HON-222\|Honda Civic\|Maria Garcia\|0912-345-678\|145.50\|3\|436.50`. | ☐ |
 | 12.8 | Close the program. In `history.txt`, change the last value of line 5 from `436.50` to `999.00`. Start the program. | Warning: *"history.txt line 5 skipped: the charge 999.00 does not equal agreed rate x days (436.50)."* The history shows 4 records. Change the value back to `436.50` afterwards. | ☐ |
+
+## 13. Fleet search, filter and removing vehicles
+
+Start from fresh sample data (step 9.5).
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 13.1 | Fleet tab: type `civic` in **Find vehicle**. | Only HON-111 and HON-222 (search matches the model). | ☐ |
+| 13.2 | Type `bmw`. | Only BMW-520 (search also matches the plate). Clear the box. | ☐ |
+| 13.3 | Set the filter to **Rented only**, then **Available only**, then **All vehicles**. | 3 rented vehicles (BMW-520, COR-202, HON-222); then the 5 available ones; then all 8. | ☐ |
+| 13.4 | Select **BMW-520** (rented). | **Remove Selected…** is disabled. Pressing the **Delete** key shows *"Vehicle BMW-520 is currently rented and cannot be removed. Return the vehicle first."* (rule enforced by `RentalAgency::removeVehicle`). | ☐ |
+| 13.5 | Select **FOR-333** → **Remove Selected…** → **No**. | Nothing changes. | ☐ |
+| 13.6 | Select **FOR-333** → **Remove Selected…** → **Yes**. | FOR-333 disappears. Status bar: Total vehicles 7. Title shows `*`. After Ctrl+S, `vehicles.txt` no longer contains FOR-333. | ☐ |
+| 13.7 | Remove **ABC-123**, then open **Rental History**. | Receipt 1 (ABC-123, Emma Wilson) is still in the history — removing a vehicle never deletes its completed rentals. | ☐ |
+
+## 14. Reports
+
+Start from fresh sample data (step 9.5).
+
+| # | Action | Expected result | ☐ |
+|---|---|---|---|
+| 14.1 | Open the **Reports** tab. | Summary: 8 vehicles, 5 available, 3 rented (**38%**); active rentals earn **605.50** per day (320.00 + 140.00 + 145.50); revenue 3,250.00; **4** completed rentals, total charged 3,250.00, average **812.50**, average length **4.3** days. | ☐ |
+| 14.2 | Look at **Revenue by model**. | BMW 520i 1,050.00 · Toyota Camry 900.00 · Honda Civic 700.00 · Toyota Corolla 600.00 (highest first). | ☐ |
+| 14.3 | Look at **Most rented vehicles**. | BMW-520, CAM-330, HON-111, ABC-123 (1 rental each, ordered by revenue). | ☐ |
+| 14.4 | Return **HON-222** for 3 days, then open Reports again. | 5 completed rentals, total charged 3,686.50; Honda Civic now has 2 rentals and 1,136.50 and moves to the top of "Revenue by model"; HON-111 and HON-222 appear in "Most rented vehicles"; utilization 25%. | ☐ |

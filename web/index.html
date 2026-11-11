@@ -4,131 +4,259 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Car Rental Management System</title>
-  <meta name="description" content="Car Rental Management System - manage the fleet, rent and return vehicles, and track rental revenue.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Cpath d='M14 38l5-12c1-3 3-4 6-4h14c3 0 5 1 6 4l5 12v8h-6v-4H20v4h-6z' fill='white'/%3E%3Ccircle cx='22' cy='38' r='3' fill='%232563eb'/%3E%3Ccircle cx='42' cy='38' r='3' fill='%232563eb'/%3E%3C/svg%3E">
+  <meta name="description" content="Car Rental Management System - fleet, rentals, returns, history and reports.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Cpath d='M14 38l5-12c1-3 3-4 6-4h14c3 0 5 1 6 4l5 12v8h-6v-4H20v4h-6z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="app-page">
-  <div class="app app-full" id="app">
-    <!-- ================= Title bar ================= -->
-    <div class="app-titlebar">
-      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <h1 id="appTitle">Car Rental Management System</h1>
+<body>
+  <!-- SVG icon sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><path d="M4 13h7V4H4zm0 7h7v-5H4zm9 0h7v-9h-7zm0-16v5h7V4z" fill="currentColor"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11v7h-2v-2H7v2H5zm2.2-1h9.6l-1-3H8.2zM7.5 14a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zm9 0a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5z" fill="currentColor"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 0 1 5.2 10.4l4.4 4.4-1.4 1.4-4.4-4.4A6.5 6.5 0 1 1 10.5 4zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z" fill="currentColor"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="M14 4a6 6 0 1 1-5.6 8.2L3 17.6V21h3.4v-2h2v-2h2l1.8-1.8A6 6 0 0 1 14 4zm2 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" fill="currentColor"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M13 3a9 9 0 1 1-8.5 12h2.1A7 7 0 1 0 6 8.4L8.6 11H2V4.4l2.6 2.6A9 9 0 0 1 13 3zm-1 5h2v4.6l3.2 1.9-1 1.7L12 13.8z" fill="currentColor"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10h3v10zm6.5 0V4h3v16zM17 20v-7h3v7z" fill="currentColor"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a1 1 0 0 1 1-1zm2 2v4h8V5zm5 8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" fill="currentColor"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z" fill="currentColor"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20zm-1 6h2v5h-2zm0 7h2v2h-2z" fill="currentColor"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 1-7 7h2a5 5 0 1 0 1.5-3.5L11 11H4V4l2.6 2.6A7 7 0 0 1 12 5z" fill="currentColor"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" fill="currentColor"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15.2 4.8 4 4L8 20H4v-4zm0 2.8L6 16.8V18h1.2l9.2-9.2z" fill="currentColor"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7zm3 2v8h2v-8zm4 0v8h2v-8z" fill="currentColor"/></symbol>
+    <symbol id="i-return" viewBox="0 0 24 24"><path d="M10 5 3 12l7 7v-4h4a5 5 0 0 0 0-10h-1v2h1a3 3 0 0 1 0 6h-4V5z" fill="currentColor"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2h14v20l-2.3-1.5L14.3 22 12 20.5 9.7 22l-2.4-1.5L5 22zm3 5v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z" fill="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" fill="currentColor"/></symbol>
+  </svg>
+
+  <div class="shell" id="app">
+    <!-- ================= Sidebar ================= -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-logo"><svg width="22" height="22"><use href="#i-car"/></svg></span>
+        <span class="brand-text"><strong>CarRental</strong><small>Management System</small></span>
+      </div>
+
+      <nav class="nav" aria-label="Main navigation">
+        <p class="nav-section">Overview</p>
+        <button type="button" class="nav-item" data-page="dashboard"><svg><use href="#i-dashboard"/></svg>Dashboard</button>
+        <p class="nav-section">Operations</p>
+        <button type="button" class="nav-item" data-page="fleet"><svg><use href="#i-car"/></svg>Fleet<span class="nav-count" id="navFleetCount"></span></button>
+        <button type="button" class="nav-item" data-page="search"><svg><use href="#i-key"/></svg>Search &amp; Rent<span class="nav-count" id="navAvailableCount"></span></button>
+        <button type="button" class="nav-item" data-page="rentals"><svg><use href="#i-return"/></svg>Rentals &amp; Returns<span class="nav-count accent" id="navRentedCount"></span></button>
+        <p class="nav-section">Records</p>
+        <button type="button" class="nav-item" data-page="history"><svg><use href="#i-history"/></svg>Rental History</button>
+        <button type="button" class="nav-item" data-page="reports"><svg><use href="#i-chart"/></svg>Reports</button>
+      </nav>
+
+      <div class="sidebar-tools">
+        <p class="nav-section">Tools</p>
+        <button type="button" class="tool-item" id="selfTestBtn"><svg><use href="#i-check"/></svg>Run Business Rule Self-Test</button>
+        <button type="button" class="tool-item" id="errorsBtn"><svg><use href="#i-warn"/></svg>Load file with errors</button>
+        <button type="button" class="tool-item" id="resetBtn"><svg><use href="#i-reset"/></svg>Reset sample data</button>
+      </div>
+    </aside>
+
+    <!-- ================= Main area ================= -->
+    <div class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn menu-toggle" id="menuToggle" aria-label="Open navigation"><svg><use href="#i-menu"/></svg></button>
+        <div class="topbar-title">
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="pageSubtitle">Overview of the fleet, rentals and revenue</p>
+        </div>
+        <div class="topbar-actions">
+          <span class="engine" id="engineStatus" role="status">Loading&hellip;</span>
+          <span class="unsaved" id="unsavedBadge" hidden>Unsaved changes</span>
+          <button type="button" class="btn btn-primary" id="saveBtn" title="Save (Ctrl+S)"><svg><use href="#i-save"/></svg>Save<kbd>Ctrl+S</kbd></button>
+        </div>
+      </header>
+
+      <main class="content">
+        <!-- ===== Dashboard ===== -->
+        <section class="page" id="page-dashboard" data-title="Dashboard" data-subtitle="Overview of the fleet, rentals and revenue">
+          <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Total vehicles</span><strong class="kpi-value" id="kTotal">0</strong><span class="kpi-note" id="kTotalNote"></span></div>
+            <div class="kpi"><span class="kpi-label">Available</span><strong class="kpi-value ok" id="kAvailable">0</strong><span class="kpi-note">ready to rent</span></div>
+            <div class="kpi"><span class="kpi-label">Rented</span><strong class="kpi-value warn" id="kRented">0</strong><span class="kpi-note" id="kUtilization"></span></div>
+            <div class="kpi kpi-highlight"><span class="kpi-label">Cumulative revenue</span><strong class="kpi-value" id="kRevenue">0.00</strong><span class="kpi-note" id="kRevenueNote"></span></div>
+          </div>
+          <div class="utilization card">
+            <div class="card-head"><h2>Fleet utilization</h2><span class="muted" id="utilText"></span></div>
+            <div class="meter" role="img" id="utilMeter"><span class="meter-fill" id="utilFill"></span></div>
+            <div class="meter-legend"><span><i class="dot dot-ok"></i>Available</span><span><i class="dot dot-rent"></i>Rented</span></div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head"><h2>Quick actions</h2></div>
+              <div class="quick-actions">
+                <button type="button" class="quick" id="qaAdd"><svg><use href="#i-plus"/></svg><span><strong>Add vehicle</strong><small>Register a new car</small></span></button>
+                <button type="button" class="quick" data-goto="search"><svg><use href="#i-key"/></svg><span><strong>Rent a vehicle</strong><small>Search available cars</small></span></button>
+                <button type="button" class="quick" data-goto="rentals"><svg><use href="#i-return"/></svg><span><strong>Return a vehicle</strong><small>Calculate the charge</small></span></button>
+                <button type="button" class="quick" data-goto="reports"><svg><use href="#i-chart"/></svg><span><strong>View reports</strong><small>Revenue and statistics</small></span></button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h2>Recent returns</h2><button type="button" class="link" data-goto="history">View all</button></div>
+              <ul class="recent" id="recentList"></ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Fleet ===== -->
+        <section class="page" id="page-fleet" data-title="Fleet" data-subtitle="All vehicles - add, edit, search and remove" hidden>
+          <div class="card">
+            <div class="toolbar">
+              <div class="search-box"><svg><use href="#i-search"/></svg><input id="fleetSearch" type="search" placeholder="Search plate or model..." maxlength="60" autocomplete="off" aria-label="Search fleet"></div>
+              <div class="segmented" role="radiogroup" aria-label="Status filter">
+                <button type="button" role="radio" data-filter="all" aria-checked="true">All</button>
+                <button type="button" role="radio" data-filter="available" aria-checked="false">Available</button>
+                <button type="button" role="radio" data-filter="rented" aria-checked="false">Rented</button>
+              </div>
+              <span class="spacer"></span>
+              <button type="button" class="btn" id="editBtn" disabled><svg><use href="#i-edit"/></svg>Edit</button>
+              <button type="button" class="btn btn-danger" id="removeBtn" disabled><svg><use href="#i-trash"/></svg>Remove</button>
+              <button type="button" class="btn btn-primary" id="addBtn"><svg><use href="#i-plus"/></svg>Add Vehicle</button>
+            </div>
+            <div class="table-wrap">
+              <table class="grid" id="fleetTable">
+                <thead><tr>
+                  <th data-key="plate">Plate</th>
+                  <th data-key="model">Model</th>
+                  <th data-key="rate" class="num">Daily Rate</th>
+                  <th data-key="status">Status</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="table-foot" id="fleetCount"></p>
+          </div>
+        </section>
+
+        <!-- ===== Search & Rent ===== -->
+        <section class="page" id="page-search" data-title="Search &amp; Rent" data-subtitle="Find an available vehicle by model and rent it" hidden>
+          <div class="card">
+            <div class="toolbar">
+              <div class="search-box wide"><svg><use href="#i-search"/></svg><input id="searchInput" type="search" placeholder="Search model, e.g. corolla..." maxlength="60" autocomplete="off" aria-label="Search model"></div>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-primary" id="rentBtn" disabled><svg><use href="#i-key"/></svg>Rent Selected</button>
+            </div>
+            <div class="table-wrap">
+              <table class="grid" id="searchTable">
+                <thead><tr>
+                  <th data-key="plate">Plate</th>
+                  <th data-key="model">Model</th>
+                  <th data-key="rate" class="num">Daily Rate</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="table-foot" id="searchCount"></p>
+          </div>
+        </section>
+
+        <!-- ===== Rentals & Returns ===== -->
+        <section class="page" id="page-rentals" data-title="Rentals &amp; Returns" data-subtitle="Vehicles currently rented and the cumulative revenue" hidden>
+          <div class="revenue-banner">
+            <div><span class="kpi-label">Cumulative Rental Revenue</span><strong id="revenueLabel">0.00</strong></div>
+            <div><span class="kpi-label">Active rentals earn</span><strong id="dailyIncomeLabel">0.00</strong><span class="kpi-note">per day</span></div>
+          </div>
+          <div class="card">
+            <div class="toolbar">
+              <h2 class="toolbar-title">Currently rented</h2>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-primary" id="returnBtn" disabled><svg><use href="#i-return"/></svg>Return Selected</button>
+            </div>
+            <div class="table-wrap">
+              <table class="grid" id="rentalsTable">
+                <thead><tr>
+                  <th data-key="plate">Plate</th>
+                  <th data-key="model">Model</th>
+                  <th data-key="renter">Renter</th>
+                  <th data-key="phone">Telephone</th>
+                  <th data-key="rate" class="num">Agreed Rate</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Rental History ===== -->
+        <section class="page" id="page-history" data-title="Rental History" data-subtitle="Every completed rental with its receipt" hidden>
+          <div class="card">
+            <div class="toolbar">
+              <div class="search-box wide"><svg><use href="#i-search"/></svg><input id="historySearch" type="search" placeholder="Plate, model, renter or telephone..." maxlength="80" autocomplete="off" aria-label="Search history"></div>
+              <span class="spacer"></span>
+              <span class="pill" id="historySummary"></span>
+              <button type="button" class="btn" id="historyReceiptBtn" disabled><svg><use href="#i-receipt"/></svg>Show Receipt</button>
+            </div>
+            <div class="table-wrap">
+              <table class="grid" id="historyTable">
+                <thead><tr>
+                  <th data-key="number" class="num">No.</th>
+                  <th data-key="returned">Returned</th>
+                  <th data-key="plate">Plate</th>
+                  <th data-key="model">Model</th>
+                  <th data-key="renter">Renter</th>
+                  <th data-key="phone">Telephone</th>
+                  <th data-key="rate" class="num">Rate</th>
+                  <th data-key="days" class="num">Days</th>
+                  <th data-key="total" class="num">Charge</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Reports ===== -->
+        <section class="page" id="page-reports" data-title="Reports" data-subtitle="Statistics calculated by the C++ RentalStatistics class" hidden>
+          <div class="kpis">
+            <div class="kpi"><span class="kpi-label">Completed rentals</span><strong class="kpi-value" id="rCompleted">0</strong></div>
+            <div class="kpi"><span class="kpi-label">Total charged</span><strong class="kpi-value" id="rTotal">0.00</strong></div>
+            <div class="kpi"><span class="kpi-label">Average charge</span><strong class="kpi-value" id="rAverage">0.00</strong><span class="kpi-note">per rental</span></div>
+            <div class="kpi"><span class="kpi-label">Average length</span><strong class="kpi-value" id="rDays">0.0</strong><span class="kpi-note">days per rental</span></div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head"><h2>Revenue by model</h2></div>
+              <div class="table-wrap">
+                <table class="grid" id="modelTable">
+                  <thead><tr>
+                    <th data-key="model">Model</th>
+                    <th data-key="rentals" class="num">Rentals</th>
+                    <th data-key="days" class="num">Days</th>
+                    <th data-key="revenue" class="num">Revenue</th>
+                    <th data-key="share">Share</th>
+                  </tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h2>Most rented vehicles</h2></div>
+              <div class="table-wrap">
+                <table class="grid" id="topTable">
+                  <thead><tr>
+                    <th data-key="rank" class="num">#</th>
+                    <th data-key="plate">Plate</th>
+                    <th data-key="model">Model</th>
+                    <th data-key="rentals" class="num">Rentals</th>
+                    <th data-key="revenue" class="num">Revenue</th>
+                  </tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar" aria-live="polite">
+        <span id="sbTotal"></span><span id="sbAvail"></span><span id="sbRented"></span><span id="sbRevenue"></span><span id="sbAction" class="sb-action"></span>
+      </footer>
     </div>
-
-    <!-- ================= Toolbar ================= -->
-    <div class="menubar" role="toolbar" aria-label="Toolbar">
-      <button type="button" id="saveBtn" title="Save (Ctrl+S)">Save <kbd>Ctrl+S</kbd></button>
-      <button type="button" id="selfTestBtn">Run Business Rule Self-Test</button>
-      <button type="button" id="errorsBtn" title="Loads a data file with invalid lines to show the load validation">Load file with errors</button>
-      <button type="button" id="resetBtn">Reset sample data</button>
-      <span class="engine" id="engineStatus" role="status">Loading&hellip;</span>
-    </div>
-
-    <!-- ================= Tabs ================= -->
-    <div class="tabs" role="tablist" aria-label="Sections">
-      <button role="tab" id="tab-fleet" aria-controls="panel-fleet" aria-selected="true">Fleet</button>
-      <button role="tab" id="tab-search" aria-controls="panel-search" aria-selected="false" tabindex="-1">Search &amp; Rent</button>
-      <button role="tab" id="tab-rentals" aria-controls="panel-rentals" aria-selected="false" tabindex="-1">Rentals &amp; Returns</button>
-      <button role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1">Rental History</button>
-    </div>
-
-    <!-- Fleet -->
-    <section class="panel" role="tabpanel" id="panel-fleet" aria-labelledby="tab-fleet">
-      <p class="hint">All vehicles in the fleet. <span class="legend legend-ok">Available</span> <span class="legend legend-rent">Rented</span> Double-click an available vehicle (or press Enter) to edit it. Click a column header to sort.</p>
-      <div class="table-wrap">
-        <table class="grid" id="fleetTable">
-          <thead><tr>
-            <th data-key="plate">Plate</th>
-            <th data-key="model">Model</th>
-            <th data-key="rate" class="num">Daily Rate</th>
-            <th data-key="status">Status</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="panel-actions">
-        <button class="btn btn-primary" id="addBtn" type="button">Add Vehicle&hellip;</button>
-        <button class="btn" id="editBtn" type="button" disabled>Edit Selected&hellip;</button>
-      </div>
-    </section>
-
-    <!-- Search & Rent -->
-    <section class="panel" role="tabpanel" id="panel-search" aria-labelledby="tab-search" hidden>
-      <div class="search-row">
-        <label for="searchInput">Search model:</label>
-        <input id="searchInput" type="search" placeholder="Search model..." maxlength="60" autocomplete="off">
-      </div>
-      <div class="table-wrap">
-        <table class="grid" id="searchTable">
-          <thead><tr>
-            <th data-key="plate">Plate</th>
-            <th data-key="model">Model</th>
-            <th data-key="rate" class="num">Daily Rate</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="panel-actions split">
-        <span class="hint" id="searchCount"></span>
-        <button class="btn btn-primary" id="rentBtn" type="button" disabled>Rent Selected&hellip;</button>
-      </div>
-    </section>
-
-    <!-- Rentals & Returns -->
-    <section class="panel" role="tabpanel" id="panel-rentals" aria-labelledby="tab-rentals" hidden>
-      <p class="revenue" id="revenueLabel"></p>
-      <div class="table-wrap">
-        <table class="grid" id="rentalsTable">
-          <thead><tr>
-            <th data-key="plate">Plate</th>
-            <th data-key="model">Model</th>
-            <th data-key="renter">Renter</th>
-            <th data-key="phone">Telephone</th>
-            <th data-key="rate" class="num">Agreed Rate</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="panel-actions split">
-        <span class="hint">Select a rented vehicle and click Return Selected&hellip; to calculate the charge and print the receipt.</span>
-        <button class="btn btn-primary" id="returnBtn" type="button" disabled>Return Selected&hellip;</button>
-      </div>
-    </section>
-
-    <!-- Rental History -->
-    <section class="panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history" hidden>
-      <p class="history-summary" id="historySummary"></p>
-      <div class="search-row">
-        <label for="historySearch">Search history:</label>
-        <input id="historySearch" type="search" placeholder="Plate, model, renter or telephone..." maxlength="80" autocomplete="off">
-      </div>
-      <div class="table-wrap">
-        <table class="grid" id="historyTable">
-          <thead><tr>
-            <th data-key="number" class="num">No.</th>
-            <th data-key="returned">Returned</th>
-            <th data-key="plate">Plate</th>
-            <th data-key="model">Model</th>
-            <th data-key="renter">Renter</th>
-            <th data-key="phone">Telephone</th>
-            <th data-key="rate" class="num">Rate</th>
-            <th data-key="days" class="num">Days</th>
-            <th data-key="total" class="num">Charge</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="panel-actions split">
-        <span class="hint">Every return is archived here. Double-click a record to see its receipt again.</span>
-        <button class="btn" id="historyReceiptBtn" type="button" disabled>Show Receipt&hellip;</button>
-      </div>
-    </section>
-
-    <!-- ================= Status bar ================= -->
-    <footer class="statusbar" aria-live="polite">
-      <span id="sbTotal"></span><span id="sbAvail"></span><span id="sbRented"></span><span id="sbRevenue"></span><span id="sbAction" class="sb-action"></span>
-    </footer>
   </div>
 
   <!-- ================= Dialogs ================= -->
@@ -139,7 +267,7 @@
       <label class="field"><span>License plate</span><input name="plate" maxlength="15" autocomplete="off"><small id="plateHint">Letters A-Z, digits 0-9 and '-' only, e.g. ABC-123.</small></label>
       <label class="field"><span>Model</span><input name="model" maxlength="60" autocomplete="off"></label>
       <label class="field"><span>Daily rate</span><input name="rate" inputmode="decimal" maxlength="16" autocomplete="off" class="num-input"><small>e.g. 150 or 149.99</small></label>
-      <div class="dlg-actions"><button type="button" class="btn" data-cancel>Cancel</button><button type="submit" class="btn btn-primary">OK</button></div>
+      <div class="dlg-actions"><button type="button" class="btn" data-cancel>Cancel</button><button type="submit" class="btn btn-primary">Save Vehicle</button></div>
     </form>
   </dialog>
 
@@ -151,7 +279,7 @@
       <label class="field"><span>Renter name</span><input name="renter" maxlength="80" autocomplete="off"></label>
       <label class="field"><span>Telephone</span><input name="phone" maxlength="20" inputmode="tel" autocomplete="off"></label>
       <label class="field"><span>Agreed daily rate</span><input name="agreed" inputmode="decimal" maxlength="16" class="num-input" autocomplete="off"><small>Pre-filled with the current rate; you can change it.</small></label>
-      <div class="dlg-actions"><button type="button" class="btn" data-cancel>Cancel</button><button type="submit" class="btn btn-primary">OK</button></div>
+      <div class="dlg-actions"><button type="button" class="btn" data-cancel>Cancel</button><button type="submit" class="btn btn-primary">Confirm Rental</button></div>
     </form>
   </dialog>
 
@@ -169,16 +297,15 @@
         <small>Whole days, 1 to 3650</small>
       </label>
       <p class="preview" id="chargePreview" aria-live="polite"></p>
-      <div class="dlg-actions"><button type="button" class="btn" data-cancel>Cancel</button><button type="submit" class="btn btn-primary">OK</button></div>
+      <div class="dlg-actions"><button type="button" class="btn" data-cancel>Cancel</button><button type="submit" class="btn btn-primary">Complete Return</button></div>
     </form>
   </dialog>
 
   <dialog id="receiptDialog" class="dlg" aria-labelledby="receiptTitle">
     <form method="dialog">
-      <h3 id="receiptTitle">Rental Receipt</h3>
-      <p class="receipt-meta" id="receiptMeta"></p>
+      <div class="receipt-head"><svg><use href="#i-receipt"/></svg><div><h3 id="receiptTitle">Rental Receipt</h3><p class="receipt-meta" id="receiptMeta"></p></div></div>
       <dl class="details receipt" id="receiptDetails"></dl>
-      <div class="dlg-actions"><button type="button" class="btn" id="printReceiptBtn">Print</button><button type="submit" class="btn btn-primary">OK</button></div>
+      <div class="dlg-actions"><button type="button" class="btn" id="printReceiptBtn">Print</button><button type="submit" class="btn btn-primary">Done</button></div>
     </form>
   </dialog>
 
@@ -206,6 +333,8 @@
       <div class="dlg-actions"><button type="submit" class="btn btn-primary">OK</button></div>
     </form>
   </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="rental_core.js"></script>
   <script src="app.js"></script>

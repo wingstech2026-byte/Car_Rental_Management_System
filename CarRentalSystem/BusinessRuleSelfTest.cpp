@@ -8,6 +8,7 @@
 #include "Money.h"
 #include "RentalAgency.h"
 #include "RentalExceptions.h"
+#include "RentalStatistics.h"
 #include "Renter.h"
 #include "TextUtils.h"
 #include "Validation.h"
@@ -195,6 +196,41 @@ std::vector<SelfTestResult> BusinessRuleSelfTest::run() const
     results.push_back(expectThrow<ValidationException>(L"Reject history record with an invalid date", [] {
         static_cast<void>(RentalRecord(1, L"2026-13-45 99:99",
             Receipt(L"TST-001", L"Toyota", L"Ann Lee", L"0912345678", Money::fromCents(1000), 1, Money::fromCents(1000))));
+    }));
+
+    // ---- Fleet search and filter ----------------------------------------------------
+    results.push_back(expectSuccess(L"Fleet search by plate/model with status filter", [&]() -> std::wstring {
+        check(agency.searchFleet(L"tst", StatusFilter::All).size() == 2, "Plate search should find 2 vehicles.");
+        check(agency.searchFleet(L"civic", StatusFilter::All).size() == 1, "Model search should find 1 vehicle.");
+        check(agency.searchFleet(L"", StatusFilter::Available).size() == 2, "Both vehicles should be available.");
+        check(agency.searchFleet(L"", StatusFilter::Rented).empty(), "No vehicle should be rented.");
+        return L"\"tst\" finds 2, \"civic\" finds 1, filter Rented finds 0";
+    }));
+
+    // ---- Removing vehicles --------------------------------------------------------------
+    results.push_back(expectThrow<VehicleNotAvailableException>(L"Reject removing a rented vehicle", [&] {
+        agency.rentVehicle(L"TST-002", Renter(L"Bob Ray", L"0912345678"), Money::parse(L"100"));
+        agency.removeVehicle(L"TST-002");
+    }));
+
+    // ---- Statistics -----------------------------------------------------------------------
+    results.push_back(expectSuccess(L"Statistics: utilization, averages, revenue by model", [&]() -> std::wstring {
+        const RentalStatistics stats(agency);
+        check(stats.getVehicleCount() == 2 && stats.getRentedCount() == 1, "Wrong fleet counts.");
+        check(stats.getUtilizationPercent() == 50, "Utilization should be 50%.");
+        check(stats.getActiveDailyIncome() == Money::parse(L"100"), "Active daily income should be 100.00.");
+        check(stats.getCompletedRentals() == 1, "Should count 1 completed rental.");
+        check(stats.getAverageCharge() == Money::parse(L"421.50"), "Wrong average charge.");
+        check(stats.getAverageDaysText() == L"3.0", "Wrong average rental length.");
+        check(stats.getRevenueByModel().size() == 1 && stats.getTopVehicles().size() == 1, "Wrong grouping.");
+        return L"50% rented, average 421.50 over " + stats.getAverageDaysText() + L" days";
+    }));
+
+    results.push_back(expectSuccess(L"Remove an available vehicle (history is kept)", [&]() -> std::wstring {
+        agency.removeVehicle(L"tst-001");
+        check(agency.searchFleet(L"TST-001", StatusFilter::All).empty(), "Vehicle was not removed.");
+        check(agency.getHistory().size() == 1, "History must be kept after removal.");
+        return L"TST-001 removed, its receipt is still in the history";
     }));
 
     // ---- Money ------------------------------------------------------------------

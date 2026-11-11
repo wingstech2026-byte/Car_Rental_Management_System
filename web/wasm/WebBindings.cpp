@@ -25,6 +25,7 @@
 #include "RentalAgency.h"
 #include "RentalExceptions.h"
 #include "RentalRecord.h"
+#include "RentalStatistics.h"
 #include "Renter.h"
 #include "TextFileDataStore.h"
 #include "TextUtils.h"
@@ -242,6 +243,73 @@ public:
         });
     }
 
+    /// Removes an available vehicle (C++ refuses rented vehicles).
+    std::string removeVehicle(const std::string& plate)
+    {
+        return guarded([&] {
+            m_agency.removeVehicle(fromJs(plate));
+            return std::string();
+        });
+    }
+
+    /// Fleet search: plates of the vehicles matching the text and the status filter
+    /// ("all", "available" or "rented").
+    std::string fleet(const std::string& query, const std::string& filter) const
+    {
+        StatusFilter status = StatusFilter::All;
+        if (filter == "available") status = StatusFilter::Available;
+        if (filter == "rented") status = StatusFilter::Rented;
+        std::vector<std::wstring> plates;
+        for (const Vehicle& vehicle : m_agency.searchFleet(fromJs(query), status))
+        {
+            plates.push_back(vehicle.getPlate());
+        }
+        return "{\"plates\":" + stringArray(plates) + "}";
+    }
+
+    /// Dashboard and reports, calculated by the C++ RentalStatistics class.
+    std::string statistics() const
+    {
+        const RentalStatistics stats(m_agency);
+        std::string byModel = "[";
+        for (std::size_t index = 0; index < stats.getRevenueByModel().size(); ++index)
+        {
+            const ModelSummary& model = stats.getRevenueByModel()[index];
+            byModel += (index > 0 ? "," : "");
+            byModel += "{\"model\":" + jsonString(model.model) +
+                       ",\"rentals\":" + std::to_string(model.rentals) +
+                       ",\"days\":" + std::to_string(model.days) +
+                       ",\"revenue\":" + jsonString(model.revenue.toDisplayString()) +
+                       ",\"revenueCents\":" + std::to_string(model.revenue.cents()) + "}";
+        }
+        byModel += "]";
+
+        std::string topVehicles = "[";
+        for (std::size_t index = 0; index < stats.getTopVehicles().size(); ++index)
+        {
+            const VehicleSummary& vehicle = stats.getTopVehicles()[index];
+            topVehicles += (index > 0 ? "," : "");
+            topVehicles += "{\"plate\":" + jsonString(vehicle.plate) +
+                           ",\"model\":" + jsonString(vehicle.model) +
+                           ",\"rentals\":" + std::to_string(vehicle.rentals) +
+                           ",\"revenue\":" + jsonString(vehicle.revenue.toDisplayString()) +
+                           ",\"revenueCents\":" + std::to_string(vehicle.revenue.cents()) + "}";
+        }
+        topVehicles += "]";
+
+        return "{\"vehicles\":" + std::to_string(stats.getVehicleCount()) +
+               ",\"available\":" + std::to_string(stats.getAvailableCount()) +
+               ",\"rented\":" + std::to_string(stats.getRentedCount()) +
+               ",\"utilization\":" + std::to_string(stats.getUtilizationPercent()) +
+               ",\"activeDailyIncome\":" + jsonString(stats.getActiveDailyIncome().toDisplayString()) +
+               ",\"revenue\":" + jsonString(stats.getRevenue().toDisplayString()) +
+               ",\"completedRentals\":" + std::to_string(stats.getCompletedRentals()) +
+               ",\"totalCharged\":" + jsonString(stats.getTotalCharged().toDisplayString()) +
+               ",\"averageCharge\":" + jsonString(stats.getAverageCharge().toDisplayString()) +
+               ",\"averageDays\":" + jsonString(stats.getAverageDaysText()) +
+               ",\"byModel\":" + byModel + ",\"topVehicles\":" + topVehicles + "}";
+    }
+
     /// Checks that a vehicle may be rented (throws if it is already rented).
     std::string checkRentable(const std::string& plate) const
     {
@@ -364,5 +432,8 @@ EMSCRIPTEN_BINDINGS(car_rental)
         .function("previewCharge", &WebApp::previewCharge)
         .function("returnVehicle", &WebApp::returnVehicle)
         .function("history", &WebApp::history)
+        .function("removeVehicle", &WebApp::removeVehicle)
+        .function("fleet", &WebApp::fleet)
+        .function("statistics", &WebApp::statistics)
         .function("runSelfTest", &WebApp::runSelfTest);
 }

@@ -25,6 +25,7 @@ Car_Rental_Management_System/
     ├── Rental.h/.cpp                ← Renter + agreed rate, calculateCharge()
     ├── Receipt.h/.cpp               ← data of a completed rental
     ├── RentalRecord.h/.cpp          ← rental history entry: number + return date + Receipt
+    ├── RentalStatistics.h/.cpp      ← reports: utilization, averages, revenue by model, top vehicles
     ├── Vehicle.h/.cpp               ← plate, model, rate, status, optional<Rental>
     ├── RentalAgency.h/.cpp          ← owns the fleet + revenue, one method per use case
     ├── RentalExceptions.h/.cpp      ← exception hierarchy
@@ -108,10 +109,11 @@ The Common Controls v6 manifest (Visual Styles) comes from a `#pragma comment(li
 
 | Tab | What you can do |
 |---|---|
-| **Fleet** | See all vehicles (green = Available, orange = Rented). **Add Vehicle…** adds a vehicle. **Edit Selected…** (or a double-click, or Enter) edits an *available* vehicle's model and rate. Click a column header to sort. |
+| **Fleet** | See all vehicles (green = Available, orange = Rented). **Find vehicle** searches plate and model; the filter shows All / Available / Rented. **Add Vehicle…** adds a vehicle. **Edit Selected…** (or a double-click, or Enter) edits an *available* vehicle's model and rate. **Remove Selected…** (or the Delete key) removes an *available* vehicle after confirmation; its completed rentals stay in the history. Click a column header to sort. |
 | **Search & Rent** | Type part of a model (for example `cor`) and the list filters as you type. Only available vehicles are shown. **Rent Selected…** opens the rent dialog. |
 | **Rentals & Returns** | Shows the rented vehicles and the cumulative revenue. **Return Selected…** asks for the number of days, shows a live charge preview and then prints a receipt. |
 | **Rental History** | Every completed rental with its receipt number, return date and charge. Search by plate, model, renter or phone; double-click to show the receipt again. |
+| **Reports** | Fleet utilization, income from active rentals, completed rentals, total and average charge, average rental length, revenue by model and the most-rented vehicles (calculated by the C++ `RentalStatistics` class). |
 
 - **Menu:** File > Save (Ctrl+S), File > Exit, Help > Run Business Rule Self-Test, Help > About.
 - **Keyboard:**
@@ -317,12 +319,29 @@ classDiagram
         +isValidTimestamp(wstring text)$ bool
     }
 
+    class RentalStatistics {
+        -size_t m_vehicleCount
+        -size_t m_rentedCount
+        -Money m_totalCharged
+        -vector~ModelSummary~ m_byModel
+        -vector~VehicleSummary~ m_topVehicles
+        +RentalStatistics(RentalAgency agency)
+        +getUtilizationPercent() int
+        +getActiveDailyIncome() Money
+        +getAverageCharge() Money
+        +getAverageDaysText() wstring
+        +getRevenueByModel() vector~ModelSummary~
+        +getTopVehicles() vector~VehicleSummary~
+    }
+
     class RentalAgency {
         -map~wstring, Vehicle~ m_fleet
         -Money m_revenue
         -bool m_modified
         +addVehicle(wstring plate, wstring model, Money rate) Vehicle
         +editVehicle(wstring plate, wstring model, Money rate) void
+        +removeVehicle(wstring plate) void
+        +searchFleet(wstring query, StatusFilter filter) vector~Vehicle~
         +searchAvailableByModel(wstring query) vector~Vehicle~
         +rentVehicle(wstring plate, Renter renter, Money agreedRate) void
         +returnVehicle(wstring plate, int days) Receipt
@@ -393,6 +412,7 @@ classDiagram
     RentalAgency ..> Receipt : returns
     RentalAgency "1" *-- "0..*" RentalRecord : rental history
     RentalRecord *-- Receipt
+    RentalStatistics ..> RentalAgency : reads (const)
     Vehicle "1" *-- "0..1" Rental : active rental
     Vehicle --> VehicleStatus
     Vehicle *-- Money : daily rate

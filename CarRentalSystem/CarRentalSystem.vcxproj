@@ -104,6 +104,7 @@ exit /b 0</Command>
     <ClInclude Include="Rental.h" />
     <ClInclude Include="Receipt.h" />
     <ClInclude Include="RentalRecord.h" />
+    <ClInclude Include="RentalStatistics.h" />
     <ClInclude Include="Vehicle.h" />
     <ClInclude Include="RentalAgency.h" />
     <ClInclude Include="RentalExceptions.h" />
@@ -129,6 +130,7 @@ exit /b 0</Command>
     <ClCompile Include="Rental.cpp" />
     <ClCompile Include="Receipt.cpp" />
     <ClCompile Include="RentalRecord.cpp" />
+    <ClCompile Include="RentalStatistics.cpp" />
     <ClCompile Include="Vehicle.cpp" />
     <ClCompile Include="RentalAgency.cpp" />
     <ClCompile Include="RentalExceptions.cpp" />

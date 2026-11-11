@@ -23,6 +23,7 @@
     <ClInclude Include="Rental.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="Receipt.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="RentalRecord.h"><Filter>Business Logic</Filter></ClInclude>
+    <ClInclude Include="RentalStatistics.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="Vehicle.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="RentalAgency.h"><Filter>Business Logic</Filter></ClInclude>
     <ClInclude Include="RentalExceptions.h"><Filter>Business Logic</Filter></ClInclude>
@@ -48,6 +49,7 @@
     <ClCompile Include="Rental.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="Receipt.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="RentalRecord.cpp"><Filter>Business Logic</Filter></ClCompile>
+    <ClCompile Include="RentalStatistics.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="Vehicle.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="RentalAgency.cpp"><Filter>Business Logic</Filter></ClCompile>
     <ClCompile Include="RentalExceptions.cpp"><Filter>Business Logic</Filter></ClCompile>

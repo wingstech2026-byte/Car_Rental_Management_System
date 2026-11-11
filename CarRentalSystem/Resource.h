@@ -62,6 +62,15 @@
 #define IDC_HISTORY_SEARCH      2018
 #define IDC_HISTORY_LIST        2019
 #define IDC_HISTORY_HINT        2020
+#define IDC_FLEET_SEARCH_LABEL  2021
+#define IDC_FLEET_SEARCH        2022
+#define IDC_FLEET_FILTER        2023
+#define IDC_REMOVE_BUTTON       2024
+#define IDC_REPORTS_SUMMARY     2025
+#define IDC_MODEL_LABEL         2026
+#define IDC_MODEL_LIST          2027
+#define IDC_TOPVEHICLE_LABEL    2028
+#define IDC_TOPVEHICLE_LIST     2029
 #define IDC_PAGE_FIRST          2100
 
 // ---- Menu / accelerator commands -----------------------------------------------
